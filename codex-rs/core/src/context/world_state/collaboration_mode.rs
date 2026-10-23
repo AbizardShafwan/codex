@@ -37,13 +37,21 @@ impl CollaborationModeState {
         }
         .catalog_override();
 
-        let instructions = catalog_instructions.map(str::to_string).or_else(|| {
-            collaboration_mode
-                .settings
-                .developer_instructions
-                .clone()
-                .filter(|instructions| !instructions.is_empty())
-        });
+        let instructions = catalog_instructions
+            .map(str::to_string)
+            .or_else(|| {
+                collaboration_mode
+                    .settings
+                    .developer_instructions
+                    .clone()
+                    .filter(|instructions| !instructions.is_empty())
+            })
+            .or_else(|| {
+                (!custom_model_catalog
+                    && collaboration_mode.mode == ModeKind::Plan
+                    && collaboration_mode.settings.developer_instructions.is_none())
+                .then(|| messages.plan.text().to_string())
+            });
         let instructions = instructions.map(|instructions| {
             if update_plan_enabled {
                 return instructions;

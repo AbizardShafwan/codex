@@ -1904,6 +1904,13 @@ class GetAccountTokenUsageParams(BaseModel):
     ] = None
 
 
+class GetProviderAccountStatusParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    model_provider: Annotated[str, Field(alias="modelProvider")]
+
+
 class GitInfo(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -2248,6 +2255,17 @@ class LocalShellStatus(Enum):
     incomplete = "incomplete"
 
 
+class ProviderApiKeyLoginAccountParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    api_key: Annotated[str, Field(alias="apiKey")]
+    provider_id: Annotated[str, Field(alias="providerId")]
+    type: Annotated[
+        Literal["providerApiKey"], Field(title="ProviderApiKeyv2::LoginAccountParamsType")
+    ]
+
+
 class ApiKeyLoginAccountParams(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -2320,6 +2338,16 @@ class AmazonBedrockAccessKeysLoginAccountParams(BaseModel):
     ]
 
 
+class ProviderApiKeyLoginAccountResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    provider_id: Annotated[str, Field(alias="providerId")]
+    type: Annotated[
+        Literal["providerApiKey"], Field(title="ProviderApiKeyv2::LoginAccountResponseType")
+    ]
+
+
 class ApiKeyLoginAccountResponse(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -2383,7 +2411,8 @@ class AmazonBedrockLoginAccountResponse(BaseModel):
 
 class LoginAccountResponse(
     RootModel[
-        ApiKeyLoginAccountResponse
+        ProviderApiKeyLoginAccountResponse
+        | ApiKeyLoginAccountResponse
         | ChatgptLoginAccountResponse
         | ChatgptDeviceCodeLoginAccountResponse
         | ChatgptAuthTokensLoginAccountResponse
@@ -2394,7 +2423,8 @@ class LoginAccountResponse(
         populate_by_name=True,
     )
     root: Annotated[
-        ApiKeyLoginAccountResponse
+        ProviderApiKeyLoginAccountResponse
+        | ApiKeyLoginAccountResponse
         | ChatgptLoginAccountResponse
         | ChatgptDeviceCodeLoginAccountResponse
         | ChatgptAuthTokensLoginAccountResponse
@@ -2406,6 +2436,19 @@ class LoginAccountResponse(
 class LoginAppBrand(Enum):
     codex = "codex"
     chatgpt = "chatgpt"
+
+
+class LogoutAccountParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    model_provider: Annotated[
+        str | None,
+        Field(
+            alias="modelProvider",
+            description="Remove only this public provider's saved key; environment keys are unchanged.",
+        ),
+    ] = None
 
 
 class LogoutAccountResponse(BaseModel):
@@ -2819,6 +2862,13 @@ class ModelListParams(BaseModel):
         int | None,
         Field(description="Optional page size; defaults to a reasonable server-side value.", ge=0),
     ] = None
+    model_provider: Annotated[
+        str | None,
+        Field(
+            alias="modelProvider",
+            description="Select a configured provider without changing the active thread or saved defaults.",
+        ),
+    ] = None
 
 
 class ModelProviderCapabilitiesReadParams(BaseModel):
@@ -3037,6 +3087,13 @@ class NullableGetAccountTokenUsageParams(RootModel[GetAccountTokenUsageParams | 
     root: Annotated[
         GetAccountTokenUsageParams | None, Field(title="Nullable_GetAccountTokenUsageParams")
     ]
+
+
+class NullableLogoutAccountParams(RootModel[LogoutAccountParams | None]):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    root: Annotated[LogoutAccountParams | None, Field(title="Nullable_LogoutAccountParams")]
 
 
 class PatchApplyStatus(Enum):
@@ -3657,6 +3714,30 @@ class ProjectRoot(BaseModel):
 class ProjectSortKey(Enum):
     position = "position"
     recency_at = "recencyAt"
+
+
+class ProviderBalance(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    amount: Annotated[
+        str,
+        Field(
+            description="Decimal amount as reported by the provider, without floating-point arithmetic."
+        ),
+    ]
+    currency: str
+    label: str
+    resets_at: Annotated[int | None, Field(alias="resetsAt")] = None
+
+
+class ProviderUsageWindow(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    label: str
+    remaining_percent: Annotated[float, Field(alias="remainingPercent")]
+    resets_at: Annotated[int | None, Field(alias="resetsAt")] = None
 
 
 class RateLimitReachedType(Enum):
@@ -7728,7 +7809,7 @@ class AccountLogoutRequest(BaseModel):
     )
     id: RequestId
     method: Annotated[Literal["account/logout"], Field(title="Account/logoutRequestMethod")]
-    params: None = None
+    params: LogoutAccountParams | None = None
 
 
 class AccountRateLimitsReadRequest(BaseModel):
@@ -7740,6 +7821,17 @@ class AccountRateLimitsReadRequest(BaseModel):
         Literal["account/rateLimits/read"], Field(title="Account/rateLimits/readRequestMethod")
     ]
     params: GetAccountRateLimitsParams | None = None
+
+
+class ProviderAccountReadRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[
+        Literal["provider/account/read"], Field(title="Provider/account/readRequestMethod")
+    ]
+    params: GetProviderAccountStatusParams
 
 
 class AccountRateLimitResetCreditConsumeRequest(BaseModel):
@@ -8800,7 +8892,8 @@ class ChatgptLoginAccountParams(BaseModel):
 
 class LoginAccountParams(
     RootModel[
-        ApiKeyLoginAccountParams
+        ProviderApiKeyLoginAccountParams
+        | ApiKeyLoginAccountParams
         | ChatgptLoginAccountParams
         | ChatgptDeviceCodeLoginAccountParams
         | ChatgptAuthTokensLoginAccountParams
@@ -8812,7 +8905,8 @@ class LoginAccountParams(
         populate_by_name=True,
     )
     root: Annotated[
-        ApiKeyLoginAccountParams
+        ProviderApiKeyLoginAccountParams
+        | ApiKeyLoginAccountParams
         | ChatgptLoginAccountParams
         | ChatgptDeviceCodeLoginAccountParams
         | ChatgptAuthTokensLoginAccountParams
@@ -9145,6 +9239,14 @@ class Project(BaseModel):
     ] = None
     roots: list[ProjectRoot]
     updated_at: Annotated[int, Field(alias="updatedAt")]
+
+
+class ProviderAccountStatus(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    balances: list[ProviderBalance]
+    limits: list[ProviderUsageWindow]
 
 
 class QueuedSubmission(BaseModel):
@@ -12987,6 +13089,7 @@ class ClientRequest(
         | AccountLoginCancelRequest
         | AccountLogoutRequest
         | AccountRateLimitsReadRequest
+        | ProviderAccountReadRequest
         | AccountRateLimitResetCreditConsumeRequest
         | AccountUsageReadRequest
         | AccountWorkspaceMessagesReadRequest
@@ -13099,6 +13202,7 @@ class ClientRequest(
         | AccountLoginCancelRequest
         | AccountLogoutRequest
         | AccountRateLimitsReadRequest
+        | ProviderAccountReadRequest
         | AccountRateLimitResetCreditConsumeRequest
         | AccountUsageReadRequest
         | AccountWorkspaceMessagesReadRequest

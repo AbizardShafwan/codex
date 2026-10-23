@@ -1750,6 +1750,7 @@ impl Config {
             }),
             personality: self.personality,
             model_catalog: self.model_catalog.clone(),
+            preserve_catalog_instructions: self.model_catalog.is_some(),
         }
     }
 

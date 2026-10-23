@@ -1346,7 +1346,7 @@ client_request_definitions! {
     },
 
     LogoutAccount => "account/logout" {
-        params: #[ts(type = "undefined")] #[serde(skip_serializing_if = "Option::is_none")] Option<()>,
+        params: #[ts(optional, as = "Option<v2::LogoutAccountParams>")] #[serde(default, skip_serializing_if = "Option::is_none")] v2::NullableLogoutAccountParams,
         serialization: global("account-auth"),
         response: v2::LogoutAccountResponse,
     },
@@ -1355,6 +1355,12 @@ client_request_definitions! {
         params: #[ts(optional, as = "Option<GetAccountRateLimitsParamsTypeScript>", inline)] #[serde(default, skip_serializing_if = "Option::is_none")] v2::NullableGetAccountRateLimitsParams,
         serialization: None,
         response: v2::GetAccountRateLimitsResponse,
+    },
+
+    GetProviderAccountStatus => "provider/account/read" {
+        params: v2::GetProviderAccountStatusParams,
+        serialization: None,
+        response: v2::ProviderAccountStatus,
     },
 
     ConsumeAccountRateLimitResetCredit => "account/rateLimitResetCredit/consume" {

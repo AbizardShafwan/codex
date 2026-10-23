@@ -122,6 +122,52 @@ impl<T: HttpTransport> ModelsClient<T> {
 
         Ok((resp.body, header_etag))
     }
+
+    /// Fetch native model details with the same auth, retry and response limits as discovery.
+    /// The caller owns URL routing and interprets only supported capability metadata.
+    pub async fn model_details_raw(
+        &self,
+        request_url: String,
+        model: String,
+        response_body_limit_bytes: usize,
+    ) -> Result<Bytes, ApiError> {
+        let response = self
+            .session
+            .execute_with(
+                Method::POST,
+                "api/show",
+                HeaderMap::new(),
+                Some(serde_json::json!({"model": model, "verbose": false})),
+                move |request| {
+                    request.url.clone_from(&request_url);
+                    request.response_body_limit_bytes = Some(response_body_limit_bytes);
+                },
+            )
+            .await?;
+        Ok(response.body)
+    }
+
+    /// Fetch a provider-owned read-only account endpoint, with bounded response bytes.
+    pub async fn account_status_raw(
+        &self,
+        request_url: String,
+        response_body_limit_bytes: usize,
+    ) -> Result<Bytes, ApiError> {
+        let response = self
+            .session
+            .execute_with(
+                Method::GET,
+                "account",
+                HeaderMap::new(),
+                None,
+                move |request| {
+                    request.url.clone_from(&request_url);
+                    request.response_body_limit_bytes = Some(response_body_limit_bytes);
+                },
+            )
+            .await?;
+        Ok(response.body)
+    }
 }
 
 #[cfg(test)]

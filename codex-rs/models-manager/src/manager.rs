@@ -42,6 +42,11 @@ const DEFAULT_MODEL_CACHE_TTL: Duration = Duration::from_secs(300);
 /// manager owns refresh policy, cache behavior, and catalog merging; it calls
 /// this endpoint only when it decides a remote refresh should happen.
 pub trait ModelsEndpointClient: fmt::Debug + Send + Sync {
+    /// First-party API-key discovery is optional; a selected public provider needs its own list.
+    fn requires_api_key_discovery_opt_in(&self) -> bool {
+        true
+    }
+
     /// Opaque identity of the current provider and credentials, without resolving auth.
     ///
     /// Must distinguish provider routing and authenticated principals within the
@@ -231,7 +236,7 @@ pub trait ModelsManager: fmt::Debug + Send + Sync {
     }
 
     // todo(aibrahim): look if we can tighten it to pub(crate)
-    /// Look up model metadata, applying remote overrides and config adjustments.
+    /// Look up model metadata, applying local behavior defaults before explicit config overrides.
     fn get_model_info<'a>(
         &'a self,
         model: &'a str,
@@ -673,7 +678,8 @@ impl OpenAiModelsManager {
         self.uses_api_key_auth()
             && !self.endpoint_client.has_command_auth()
             && (!self.endpoint_client.supports_api_key_models()
-                || !self.api_key_model_discovery_enabled.load(Ordering::SeqCst))
+                || (self.endpoint_client.requires_api_key_discovery_opt_in()
+                    && !self.api_key_model_discovery_enabled.load(Ordering::SeqCst)))
     }
 
     fn uses_api_key_auth(&self) -> bool {
@@ -952,6 +958,11 @@ fn construct_model_info(
         }
     } else {
         model_info::model_info_from_slug(model)
+    };
+    let model_info = if config.preserve_catalog_instructions || config.model_catalog.is_some() {
+        model_info
+    } else {
+        model_info::with_builtin_prompt_defaults(model_info)
     };
     model_info::with_config_overrides(model_info, config)
 }

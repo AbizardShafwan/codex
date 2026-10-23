@@ -79,6 +79,56 @@ pub(crate) struct StatusHistoryHandle {
 }
 
 impl StatusHistoryHandle {
+    pub(crate) fn set_provider_account_status(
+        &self,
+        status: Result<codex_protocol::account::ProviderAccountStatus, String>,
+    ) {
+        fn reset_suffix(timestamp: Option<i64>) -> String {
+            timestamp
+                .and_then(|timestamp| DateTime::from_timestamp(timestamp, 0))
+                .map(|date| {
+                    format!(
+                        " · resets {}",
+                        date.with_timezone(&Local).format("%b %d %H:%M %Z")
+                    )
+                })
+                .unwrap_or_default()
+        }
+        let rows = match status {
+            Ok(status) => status
+                .limits
+                .into_iter()
+                .map(|window| {
+                    (
+                        window.label,
+                        format!(
+                            "{:.0}% left{}",
+                            window.remaining_percent,
+                            reset_suffix(window.resets_at)
+                        ),
+                    )
+                })
+                .chain(status.balances.into_iter().map(|balance| {
+                    (
+                        balance.label,
+                        format!(
+                            "{} {}{}",
+                            balance.amount,
+                            balance.currency,
+                            reset_suffix(balance.resets_at)
+                        ),
+                    )
+                }))
+                .collect(),
+            Err(message) => vec![("Provider account".into(), message)],
+        };
+        *self
+            .card
+            .provider_account_rows
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(rows);
+    }
+
     pub(crate) fn copy_text(&self) -> String {
         self.card
             .content_lines(u16::MAX)
@@ -140,6 +190,7 @@ struct StatusHistoryCell {
     token_usage: StatusTokenUsageData,
     rate_limit_state: Arc<RwLock<StatusRateLimitState>>,
     thread_usage: StatusThreadUsage,
+    provider_account_rows: RwLock<Option<Vec<(String, String)>>>,
 }
 
 #[cfg(test)]
@@ -399,6 +450,7 @@ impl StatusHistoryCell {
             agents_summary,
             rate_limit_state,
             thread_usage,
+            provider_account_rows: RwLock::new(None),
         }
     }
 
@@ -745,7 +797,7 @@ impl StatusHistoryCell {
                 (None, None) => "ChatGPT".to_string(),
             },
             StatusAccountDisplay::ApiKey => {
-                "API key configured (run codex login to use ChatGPT)".to_string()
+                "API key configured (run memyr login to use ChatGPT)".to_string()
             }
         });
 
@@ -791,6 +843,16 @@ impl StatusHistoryCell {
         }
         self.collect_rate_limit_labels(&rate_limit_state, &mut seen, &mut labels);
         self.thread_usage.push_labels(&mut labels, &mut seen);
+        let provider_account_rows = self
+            .provider_account_rows
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone();
+        if let Some(rows) = &provider_account_rows {
+            for (label, _) in rows {
+                push_label(&mut labels, &mut seen, label);
+            }
+        }
 
         let formatter = FieldFormatter::from_labels(labels.iter().map(String::as_str));
         let value_width = formatter.value_width(available_width);
@@ -861,7 +923,21 @@ impl StatusHistoryCell {
             lines.push(formatter.line("Context window", spans));
         }
 
-        lines.extend(self.rate_limit_lines(&rate_limit_state, available_width, &formatter));
+        if let Some(rows) = provider_account_rows {
+            for (label, value) in rows {
+                let wrapped =
+                    word_wrap_lines([Line::from(value)], RtOptions::new(value_width.max(1)));
+                for (index, line) in wrapped.into_iter().enumerate() {
+                    lines.push(if index == 0 {
+                        Line::from(formatter.full_spans(&label, line.spans))
+                    } else {
+                        formatter.continuation(line.spans)
+                    });
+                }
+            }
+        } else {
+            lines.extend(self.rate_limit_lines(&rate_limit_state, available_width, &formatter));
+        }
         let thread_usage_lines = self.thread_usage.lines(&formatter, value_width);
         if !thread_usage_lines.is_empty() {
             lines.push(Line::from(Vec::<Span<'static>>::new()));

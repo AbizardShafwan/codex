@@ -139,6 +139,7 @@ mod experimental_features;
 mod markdown_copy;
 mod permission_discovery;
 mod pets;
+mod provider_login;
 mod security_setup;
 mod worktree_browser;
 pub use custom_terminal::Terminal;
@@ -1192,7 +1193,7 @@ async fn run_ratatui_app(
     remote_cwd_override: Option<PathBuf>,
     initial_config: Config,
     manually_selected_oss_provider: Option<String>,
-    overrides: ConfigOverrides,
+    mut overrides: ConfigOverrides,
     cli_kv_overrides: Vec<(String, toml::Value)>,
     mut cloud_config_bundle: CloudConfigBundleLoader,
     feedback: codex_feedback::CodexFeedback,
@@ -1411,6 +1412,19 @@ async fn run_ratatui_app(
                 update_action: None,
                 exit_reason: ExitReason::UserRequested,
             });
+        }
+        if let Some(provider_id) = onboarding_result
+            .selected_provider
+            .filter(|id| *id != initial_config.model_provider_id)
+        {
+            let server = app_server.as_ref().ok_or_else(|| {
+                color_eyre::eyre::eyre!("Provider selection requires an app-server connection.")
+            })?;
+            let selection =
+                provider_login::select_provider(server.request_handle(), provider_id, None).await?;
+            provider_login::persist_provider_selection(server.request_handle(), &selection).await?;
+            overrides.model_provider = Some(selection.provider_id);
+            overrides.model = Some(selection.model.model);
         }
         #[cfg(target_os = "windows")]
         {

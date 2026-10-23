@@ -210,6 +210,7 @@ export type { GetAccountRateLimitsResponse } from "./GetAccountRateLimitsRespons
 export type { GetAccountResponse } from "./GetAccountResponse";
 export type { GetAccountTokenUsageParams } from "./GetAccountTokenUsageParams";
 export type { GetAccountTokenUsageResponse } from "./GetAccountTokenUsageResponse";
+export type { GetProviderAccountStatusParams } from "./GetProviderAccountStatusParams";
 export type { GetWorkspaceMessagesResponse } from "./GetWorkspaceMessagesResponse";
 export type { GitInfo } from "./GitInfo";
 export type { GrantedPermissionProfile } from "./GrantedPermissionProfile";
@@ -250,6 +251,7 @@ export type { ListMcpServerStatusResponse } from "./ListMcpServerStatusResponse"
 export type { LoginAccountParams } from "./LoginAccountParams";
 export type { LoginAccountResponse } from "./LoginAccountResponse";
 export type { LoginAppBrand } from "./LoginAppBrand";
+export type { LogoutAccountParams } from "./LogoutAccountParams";
 export type { LogoutAccountResponse } from "./LogoutAccountResponse";
 export type { ManagedHooksRequirements } from "./ManagedHooksRequirements";
 export type { MarketplaceAddParams } from "./MarketplaceAddParams";
@@ -413,6 +415,9 @@ export type { ProjectChangeType } from "./ProjectChangeType";
 export type { ProjectChangedNotification } from "./ProjectChangedNotification";
 export type { ProjectRoot } from "./ProjectRoot";
 export type { ProjectSortKey } from "./ProjectSortKey";
+export type { ProviderAccountStatus } from "./ProviderAccountStatus";
+export type { ProviderBalance } from "./ProviderBalance";
+export type { ProviderUsageWindow } from "./ProviderUsageWindow";
 export type { QueuedSubmission } from "./QueuedSubmission";
 export type { RateLimitReachedType } from "./RateLimitReachedType";
 export type { RateLimitResetCredit } from "./RateLimitResetCredit";

@@ -1,15 +1,15 @@
 ## Multi agents
-You have the possibility to spawn and use other agents to complete a task. For example, this can be use for:
-* Very large tasks with multiple well-defined scopes
-* When you want a review from another agent. This can review your own work or the work of another agent.
-* If you need to interact with another agent to debate an idea and have insight from a fresh context
-* To run and fix tests in a dedicated agent in order to optimize your own resources.
 
-This feature must be used wisely. For simple or straightforward tasks, you don't need to spawn a new agent.
+Follow the main engineering policy. Use subagents only when the user explicitly permits delegation for the current task and the host's tools and permissions allow it. A large task, an available agent roster, a skill, a project instruction or a desire for a second opinion is not permission by itself.
 
-**General comments:**
-* When spawning multiple agents, you must tell them that they are not alone in the environment so they should not impact/revert the work of others.
-* Running tests or some config commands can output a large amount of logs. In order to optimize your own context, you can spawn an agent and ask it to do it for you. In such cases, you must tell this agent that it can't spawn another agent himself (to prevent infinite recursion)
-* When you're done with a sub-agent, don't forget to close it using `close_agent`.
-* Be careful on the `timeout_ms` parameter you choose for `wait_agent`. It should be wisely scaled.
-* Sub-agents have access to the same set of tools as you do so you must tell them if they are allowed to spawn sub-agents themselves or not.
+Within authorized delegated work:
+
+- Assign a bounded outcome and clear ownership; preserve the user's scope, constraints and approvals.
+- Explain the shared filesystem and avoid conflicting edits. Do not overwrite another worker's or the user's work.
+- A worker may delegate further only if the user's permission covers it and the host allows it; a parent's task assignment alone does not create that permission.
+- Use only the actual tools and agent definitions supplied by this session.
+- Inspect worker evidence and the integrated result before claiming completion.
+- Observe owned work with available completion notifications or proportionate waits, and close or release resources using the actual lifecycle tools when finished or cancelled.
+- Continue safe independent work while workers run; coordinate dependencies rather than treating delegation as a reason to stop contributing.
+
+Without delegation permission, do the work yourself. Ask only if permission materially affects the outcome.

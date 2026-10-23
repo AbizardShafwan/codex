@@ -172,7 +172,33 @@ impl AccountRequestProcessor {
     pub(crate) async fn logout_account(
         &self,
         request_id: ConnectionRequestId,
+        params: Option<codex_app_server_protocol::LogoutAccountParams>,
     ) -> Result<Option<ClientResponsePayload>, JSONRPCErrorError> {
+        if let Some(provider_id) = params.and_then(|params| params.model_provider) {
+            let provider = self
+                .config
+                .model_providers
+                .get(&provider_id)
+                .ok_or_else(|| invalid_request("Unknown model provider."))?;
+            if provider.model_catalog_format
+                != codex_model_provider_info::ModelCatalogFormat::Openai
+                || provider.requires_openai_auth
+                || provider.has_command_auth()
+            {
+                return Err(invalid_request(
+                    "This provider does not use saved provider keys.",
+                ));
+            }
+            let store =
+                codex_model_provider::ProviderApiKeyStore::new(&self.config.codex_home, provider)
+                    .map_err(|_| internal_error("Failed to open provider credential storage."))?;
+            tokio::task::spawn_blocking(move || store.delete())
+                .await
+                .map_err(|_| internal_error("Failed to remove provider credentials."))?
+                .map_err(|_| internal_error("Failed to remove provider credentials."))?;
+            self.model_catalog.invalidate().await;
+            return Ok(Some(LogoutAccountResponse {}.into()));
+        }
         self.logout_v2(request_id).await.map(|()| None)
     }
 
@@ -342,6 +368,58 @@ impl AccountRequestProcessor {
         }
         self.enterprise_login.cancel(/*login_id*/ None).await;
         match params {
+            LoginAccountParams::ProviderApiKey {
+                provider_id,
+                api_key,
+            } => {
+                if !self
+                    .auth_manager
+                    .is_login_method_allowed(ForcedLoginMethod::Api)
+                {
+                    return Err(invalid_request("API key login is disabled."));
+                }
+                if self
+                    .config
+                    .config_layer_stack
+                    .required_model_provider()
+                    .is_some_and(|required| required != provider_id)
+                {
+                    return Err(invalid_request(
+                        "The selected provider is disabled by managed configuration.",
+                    ));
+                }
+                let provider = self
+                    .config
+                    .model_providers
+                    .get(&provider_id)
+                    .ok_or_else(|| invalid_request("Unknown model provider."))?;
+                if provider.model_catalog_format
+                    != codex_model_provider_info::ModelCatalogFormat::Openai
+                    || provider.requires_openai_auth
+                    || provider.auth.is_some()
+                    || provider.env_key.is_none()
+                {
+                    return Err(invalid_request(
+                        "This provider does not support saved API-key login.",
+                    ));
+                }
+                let store = codex_model_provider::ProviderApiKeyStore::new(
+                    &self.config.codex_home,
+                    provider,
+                )
+                .map_err(|_| internal_error("Failed to open provider credential storage."))?;
+                tokio::task::spawn_blocking(move || store.save(&api_key))
+                    .await
+                    .map_err(|_| internal_error("Provider credential storage failed."))?
+                    .map_err(|_| invalid_request("Failed to save the provider API key. Check the key and credential storage."))?;
+                self.model_catalog.invalidate().await;
+                self.outgoing
+                    .send_response(
+                        request_id,
+                        LoginAccountResponse::ProviderApiKey { provider_id },
+                    )
+                    .await;
+            }
             LoginAccountParams::ApiKey { api_key } => {
                 self.login_api_key_v2(request_id, LoginApiKeyParams { api_key })
                     .await;
@@ -1254,6 +1332,49 @@ impl AccountRequestProcessor {
             account_id: response.account_id,
             rate_limit_upsell,
         })
+    }
+
+    pub(crate) async fn get_provider_account_status(
+        &self,
+        params: codex_app_server_protocol::GetProviderAccountStatusParams,
+    ) -> Result<Option<ClientResponsePayload>, JSONRPCErrorError> {
+        let startup = self
+            .config_manager
+            .load_startup_config(Some(self.config.cwd.to_path_buf()))
+            .await
+            .map_err(|_| internal_error("Failed to load provider configuration"))?;
+        let mut config = startup.config;
+        if config
+            .config_layer_stack
+            .required_model_provider()
+            .is_some_and(|required| required != params.model_provider)
+        {
+            return Err(invalid_request(
+                "The selected provider is disabled by managed configuration.",
+            ));
+        }
+        config.model_provider = config
+            .model_providers
+            .get(&params.model_provider)
+            .cloned()
+            .ok_or_else(|| invalid_request("Unknown model provider"))?;
+        config.model_provider_id = params.model_provider;
+        self.config_manager
+            .check_thread_model_provider(&config)
+            .await
+            .map_err(|_| invalid_request("Provider access is disabled by managed configuration"))?;
+        let status = codex_model_provider::read_provider_account_status(
+            config.model_provider.clone(),
+            Some(self.auth_manager.clone()),
+            config.http_client_factory(),
+        )
+        .await
+        .map_err(|_| {
+            internal_error(
+                "Provider account data unavailable. Check the provider connection and retry later.",
+            )
+        })?;
+        Ok(Some(status.into()))
     }
 
     async fn get_account_token_usage_response(

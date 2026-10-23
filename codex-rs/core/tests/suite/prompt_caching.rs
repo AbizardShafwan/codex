@@ -152,7 +152,7 @@ async fn prompt_tools_are_consistent_across_requests(
         .as_mut()
         .expect("bundled model messages")
         .instructions_template = Some(MODEL_BASE_INSTRUCTIONS.to_string());
-    // Supply model instructions without making them an explicit config catalog override.
+    // Provider instructions must not override the local engineering policy.
     let models_manager = Arc::new(StaticModelsManager::new(
         /*auth_manager*/ None,
         ModelsResponse {
@@ -218,13 +218,16 @@ async fn prompt_tools_are_consistent_across_requests(
         CUSTOM_BASE_INSTRUCTIONS.to_string()
     } else {
         let original = render_model_instructions(&model_info);
+        assert_eq!(
+            original,
+            codex_models_manager::model_info::BASE_INSTRUCTIONS
+        );
         if expected_update_plan_enabled {
             original
         } else {
-            let (before, planning) = original.split_once("## Planning\n").unwrap();
-            let (_, after) = planning.split_once("\n## ").unwrap();
-            let (after, _) = after.split_once("## `update_plan`\n").unwrap();
-            format!("{before}## {after}")
+            let (before, planning) = original.split_once("## Plan tool\n").unwrap();
+            let (_, after) = planning.split_once("## Skills and integrations\n").unwrap();
+            format!("{before}## Skills and integrations\n{after}")
         }
     };
 

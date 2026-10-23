@@ -70,7 +70,13 @@ async fn api_key_discovery_flag_controls_fetches_and_cached_catalogs() {
         models
     );
     assert_eq!(endpoint.fetch_count(), 1);
-    assert_eq!(manager.get_model_info("dynamic", &config).await, models[0]);
+    let mut expected = models[0].clone();
+    expected
+        .model_messages
+        .as_mut()
+        .expect("provider messages")
+        .instructions_template = Some(crate::model_info::BASE_INSTRUCTIONS.to_string());
+    assert_eq!(manager.get_model_info("dynamic", &config).await, expected);
 
     // A runtime rollback must also suppress the already-loaded catalog.
     manager.set_api_key_model_discovery_enabled(/*enabled*/ false);

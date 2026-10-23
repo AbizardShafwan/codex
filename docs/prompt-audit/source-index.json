@@ -1,0 +1,368 @@
+{
+  "text_assets": [
+    {
+      "path": "codex-rs/collaboration-mode-templates/templates/default.md",
+      "bytes": 1964,
+      "sha256": "a47ce853da562ec89c69b7d20f83ae6546598f6c142a5b6df964af374e4dfcdf"
+    },
+    {
+      "path": "codex-rs/collaboration-mode-templates/templates/plan.md",
+      "bytes": 3130,
+      "sha256": "e73ea04b025beb754ae24a2f734473d15d0b0346e976463c25c9536960c442bb"
+    },
+    {
+      "path": "codex-rs/core/templates/agents/orchestrator.md",
+      "bytes": 2021,
+      "sha256": "dddf5d566d213970443a5ac61e3e500c63c39fc5880a531dc7867a4b5895bbfb"
+    },
+    {
+      "path": "codex-rs/core/templates/collab/experimental_prompt.md",
+      "bytes": 1317,
+      "sha256": "9199277c1eb1a904d0aefc46117dfb51c1e2ca810359f2589befede5ed04b5af"
+    },
+    {
+      "path": "codex-rs/core/templates/review/history_message_completed.md",
+      "bytes": 245,
+      "sha256": "ba3815d1787697a682253f1c18d4618210732abb64263d633b903955ca838d53"
+    },
+    {
+      "path": "codex-rs/core/templates/review/history_message_interrupted.md",
+      "bytes": 264,
+      "sha256": "034191c75f15338861ce0be2fcf28855833fc5f601b387cbc3c764032507dc86"
+    },
+    {
+      "path": "codex-rs/core/templates/search_tool/request_plugin_install_description.md",
+      "bytes": 2173,
+      "sha256": "e5acd502e83f3a6a9d20c53bcb521633a8df8c654ceb08da63db5aefb35e1f66"
+    },
+    {
+      "path": "codex-rs/core/templates/search_tool/tool_description.md",
+      "bytes": 554,
+      "sha256": "0e4029b9b5d23b400e76a0051b9df878f28153ae2de126a77b90b80b64cd3d6b"
+    },
+    {
+      "path": "codex-rs/ext/goal/templates/goals/budget_limit.md",
+      "bytes": 725,
+      "sha256": "ebac90ff1fc825baf3003875ea8a1e3de495f4a93bbf8fdd066b594595d358aa"
+    },
+    {
+      "path": "codex-rs/ext/goal/templates/goals/continuation.md",
+      "bytes": 6771,
+      "sha256": "09ecadcd3448c11e239c6d14a2ef28b195408091f288e1a7aeb810edace4c4f6"
+    },
+    {
+      "path": "codex-rs/ext/goal/templates/goals/objective_updated.md",
+      "bytes": 692,
+      "sha256": "a9752da8f38e7a8f11f3cda0d8751894bd0c837cca61d697cdf46b55333b77d6"
+    },
+    {
+      "path": "codex-rs/ext/image-generation/imagegen_description.md",
+      "bytes": 2099,
+      "sha256": "ee89dd3b9df94cc8b42b14e48714c68d11d4cd66113853b42ccf9cbd7858af61"
+    },
+    {
+      "path": "codex-rs/ext/memories/templates/memories/read_path.md",
+      "bytes": 6593,
+      "sha256": "2bc7736029884b714860a6f0d6b2fd26598bba58f2213b787f01fe2a491f4326"
+    },
+    {
+      "path": "codex-rs/ext/memories/templates/memories/read_path_v2.md",
+      "bytes": 2099,
+      "sha256": "2f81fa2e89f341a1b7b3cf11ee7b855087c4ab84ddad920980475465ef28ff27"
+    },
+    {
+      "path": "codex-rs/ext/web-search/web_run_description.md",
+      "bytes": 7507,
+      "sha256": "1f3879b44690eb7aad9ba97351acda16c4d0c26847bcb4af2964d5989404407e"
+    },
+    {
+      "path": "codex-rs/memories/write/templates/extensions/ad_hoc/instructions.md",
+      "bytes": 901,
+      "sha256": "41f47a351ed891b6405b3c61834987c12ae0fac1ff369be89fd53bea0e957c30"
+    },
+    {
+      "path": "codex-rs/memories/write/templates/memories/consolidation.md",
+      "bytes": 51237,
+      "sha256": "1450e24f84c03375aa5114c6c0857f515395129dcc00f65263221d03866852a0"
+    },
+    {
+      "path": "codex-rs/memories/write/templates/memories/consolidation_v2.md",
+      "bytes": 3128,
+      "sha256": "7334fdb4aa5d958bcff54568a375d0b0145c19a611a1a22faa6bf251a46a5f0e"
+    },
+    {
+      "path": "codex-rs/memories/write/templates/memories/stage_one_input.md",
+      "bytes": 401,
+      "sha256": "2e54c74909238022305c269c862910bb29509fda8b58ce671ef011f8d6453047"
+    },
+    {
+      "path": "codex-rs/memories/write/templates/memories/stage_one_input_v2.md",
+      "bytes": 939,
+      "sha256": "8fd4bb25fe6bd746b2d46ad841ac3a195d220c3da0cb9230615e2347c6ef853e"
+    },
+    {
+      "path": "codex-rs/memories/write/templates/memories/stage_one_system.md",
+      "bytes": 30449,
+      "sha256": "cf795e8a2f5f52d333af2613bf1ff79178112f5fd2161cc181a8ddf52e59da33"
+    },
+    {
+      "path": "codex-rs/memories/write/templates/memories/stage_one_system_v2.md",
+      "bytes": 3153,
+      "sha256": "334c0d51a2c63bd317dac074155fb3ecf0a56af8b00657736bab9c74222372b4"
+    },
+    {
+      "path": "codex-rs/models-manager/prompt.md",
+      "bytes": 9508,
+      "sha256": "6f56bde88ee4c96bd1a7fde4ac5d3eb41c1d930c944ca46f34b8b76a6a2f4110"
+    },
+    {
+      "path": "codex-rs/prompts/templates/compact/prompt.md",
+      "bytes": 1211,
+      "sha256": "b084c795a4d08c34d0d037292a6a5fc99846b68540990cc8e53a810b37546b61"
+    },
+    {
+      "path": "codex-rs/prompts/templates/compact/summary_prefix.md",
+      "bytes": 450,
+      "sha256": "ade8c1eb7d30367331a8ee0d77c86af4749908c533e287848ad256c89ec8cb29"
+    },
+    {
+      "path": "codex-rs/prompts/templates/guardian/classifier_instructions.md",
+      "bytes": 10351,
+      "sha256": "52485dcc1856e6d33697b0bee0d57b7af5bcc0cd2f64be0dc6b3505d56549aef"
+    },
+    {
+      "path": "codex-rs/prompts/templates/guardian/node_repl_policy.md",
+      "bytes": 2860,
+      "sha256": "e5d12bc2404640513aba2df9dcc5689d2f0280191fe3508c55570ea0764d13a0"
+    },
+    {
+      "path": "codex-rs/prompts/templates/guardian/policy.md",
+      "bytes": 8281,
+      "sha256": "e6b0cf0a2e1c4cabc0a37ac2a0bc424ddd7c89e85d049e32d281a8db6e8d3ce6"
+    },
+    {
+      "path": "codex-rs/prompts/templates/guardian/policy_template.md",
+      "bytes": 9754,
+      "sha256": "37441097e4e825e0b195c32c985817ea07da15bb5c20fa753d87b22e2fe47e73"
+    },
+    {
+      "path": "codex-rs/prompts/templates/permissions/approval_policy/never.md",
+      "bytes": 120,
+      "sha256": "41c7931bac2391a24046362bd07615d5a3e73dca4672b911516fac99646be8c4"
+    },
+    {
+      "path": "codex-rs/prompts/templates/permissions/approval_policy/on_request.md",
+      "bytes": 3661,
+      "sha256": "85541a9738741407642b3c39bbe3781fbf8bb42f628d50e562c87738ab192b3a"
+    },
+    {
+      "path": "codex-rs/prompts/templates/permissions/approval_policy/on_request_rule_request_permission.md",
+      "bytes": 1725,
+      "sha256": "98e8a78ac869d64fb094fb1a12e20e327e46a159bf74022c588b84326bf6afba"
+    },
+    {
+      "path": "codex-rs/prompts/templates/permissions/approval_policy/unless_trusted.md",
+      "bytes": 152,
+      "sha256": "fadec1a060a758b805f227bc5715c7dd3d7d7e2015bd5020c386eca0f3293d10"
+    },
+    {
+      "path": "codex-rs/prompts/templates/permissions/approved_prefixes.md",
+      "bytes": 108,
+      "sha256": "2d37f635b9800903992a94062804e82ad10b9e7ee5c2d904b38c66c0717a217f"
+    },
+    {
+      "path": "codex-rs/prompts/templates/permissions/sandbox_mode/danger_full_access.md",
+      "bytes": 201,
+      "sha256": "0d887cb1eaba21a6cade67ab958a6ffee00f671c46f8cf29c83706e397942dbf"
+    },
+    {
+      "path": "codex-rs/prompts/templates/permissions/sandbox_mode/read_only.md",
+      "bytes": 177,
+      "sha256": "509b39f88e6a4f5cb36485ea8b340680c03f27175ba20200b823ec07bc79668d"
+    },
+    {
+      "path": "codex-rs/prompts/templates/permissions/sandbox_mode/workspace_write.md",
+      "bytes": 281,
+      "sha256": "763661195d613a48173638af6227d480d70ab0a6898d3a81ff075155e82f7555"
+    },
+    {
+      "path": "codex-rs/prompts/templates/persistent_mode.md",
+      "bytes": 1930,
+      "sha256": "52636603c53983144d2d8a25f551dd6475a95d7573c9a3e9001f05018c810dc9"
+    },
+    {
+      "path": "codex-rs/prompts/templates/realtime/backend_prompt.md",
+      "bytes": 3037,
+      "sha256": "2fc7350a604f9db7a5b544f5e7c8677a10f2bd7c79ac0e1e722d80de7c4384ed"
+    },
+    {
+      "path": "codex-rs/prompts/templates/realtime/realtime_end.md",
+      "bytes": 223,
+      "sha256": "95dbde1501871117f96d45f95cb501abbbc25464eab1ae5ed689e110e1849036"
+    },
+    {
+      "path": "codex-rs/prompts/templates/realtime/realtime_start.md",
+      "bytes": 1128,
+      "sha256": "9d0a1b49c332c42feb18e39473083a8a8656063a31286edf9b737e714f739159"
+    },
+    {
+      "path": "codex-rs/prompts/templates/review/exit_interrupted.xml",
+      "bytes": 264,
+      "sha256": "034191c75f15338861ce0be2fcf28855833fc5f601b387cbc3c764032507dc86"
+    },
+    {
+      "path": "codex-rs/prompts/templates/review/exit_success.xml",
+      "bytes": 247,
+      "sha256": "87ce1bcbc0f1aee3fcba4fedd35775eccf4a640352b071ead206d0b4ff286559"
+    },
+    {
+      "path": "codex-rs/prompts/templates/review/rubric.md",
+      "bytes": 8186,
+      "sha256": "3c3b37abf05e7f96c081908df987ed673ab7b54faf263aad5ed4dba925917ae8"
+    },
+    {
+      "path": "codex-rs/skills/src/assets/samples/imagegen/SKILL.md",
+      "bytes": 19201,
+      "sha256": "681ddb4ad6d06a2acc78a3535b583f8d0c1ea800ecda3d56370d3310fd2cd4ba"
+    },
+    {
+      "path": "codex-rs/skills/src/assets/samples/openai-docs/SKILL.md",
+      "bytes": 5437,
+      "sha256": "aa6829e21df2223167c85d2e49b6337a7345c84c1033f1ec10182c7882b36d45"
+    },
+    {
+      "path": "codex-rs/skills/src/assets/samples/review-agent/SKILL.md",
+      "bytes": 2661,
+      "sha256": "07079efd0dc76f05fade424e5dfb048dce1de2df7626e1a4f56292a4f3f92228"
+    },
+    {
+      "path": "codex-rs/skills/src/assets/samples/skill-creator/SKILL.md",
+      "bytes": 15311,
+      "sha256": "6656e54755638e8efcf275a472b9672eaa8a9a1b9e59dc210e275b03b59e1e66"
+    },
+    {
+      "path": "codex-rs/skills/src/assets/samples/skill-installer/SKILL.md",
+      "bytes": 3367,
+      "sha256": "d68b77e5bbb34dedab89d134da52855f140fc4b4299b80104f534e3b9e98f8ee"
+    },
+    {
+      "path": "codex-rs/tui/assets/prompt_for_init_command.md",
+      "bytes": 1836,
+      "sha256": "70dfe903081ca894fbec7d80b40da2b5560a6106422fdfd0db2907dc9f5aa525"
+    }
+  ],
+  "message_and_tool_generators": [
+    "codex-rs/cli/src/main.rs",
+    "codex-rs/config/src/skills_config.rs",
+    "codex-rs/core/src/client.rs",
+    "codex-rs/core/src/client_public_history.rs",
+    "codex-rs/core/src/context/agent_message_board_notification.rs",
+    "codex-rs/core/src/context/approved_command_prefix_saved.rs",
+    "codex-rs/core/src/context/apps_instructions.rs",
+    "codex-rs/core/src/context/available_plugins_instructions.rs",
+    "codex-rs/core/src/context/base_instructions.rs",
+    "codex-rs/core/src/context/compaction_summary.rs",
+    "codex-rs/core/src/context/content_filter_guidance.rs",
+    "codex-rs/core/src/context/contextual_user_message.rs",
+    "codex-rs/core/src/context/current_time_reminder.rs",
+    "codex-rs/core/src/context/developer_instructions.rs",
+    "codex-rs/core/src/context/environments_instructions.rs",
+    "codex-rs/core/src/context/guardian_approved_action.rs",
+    "codex-rs/core/src/context/guardian_assistant_context.rs",
+    "codex-rs/core/src/context/guardian_budget_omission.rs",
+    "codex-rs/core/src/context/guardian_conversation_history.rs",
+    "codex-rs/core/src/context/guardian_followup_review_reminder.rs",
+    "codex-rs/core/src/context/guardian_node_repl_policy.rs",
+    "codex-rs/core/src/context/guardian_policy.rs",
+    "codex-rs/core/src/context/guardian_retained_instructions.rs",
+    "codex-rs/core/src/context/guardian_review_evidence.rs",
+    "codex-rs/core/src/context/guardian_sender_messages.rs",
+    "codex-rs/core/src/context/guardian_tool_descriptions.rs",
+    "codex-rs/core/src/context/hook_additional_context.rs",
+    "codex-rs/core/src/context/image_resize_notice.rs",
+    "codex-rs/core/src/context/inter_agent_completion_message.rs",
+    "codex-rs/core/src/context/inter_agent_message.rs",
+    "codex-rs/core/src/context/internal_model_context.rs",
+    "codex-rs/core/src/context/legacy_apply_patch_exec_command_warning.rs",
+    "codex-rs/core/src/context/legacy_model_mismatch_warning.rs",
+    "codex-rs/core/src/context/legacy_unified_exec_process_limit_warning.rs",
+    "codex-rs/core/src/context/memory.rs",
+    "codex-rs/core/src/context/mod.rs",
+    "codex-rs/core/src/context/model_instructions.rs",
+    "codex-rs/core/src/context/model_switch_instructions.rs",
+    "codex-rs/core/src/context/multi_agent_mode_instructions.rs",
+    "codex-rs/core/src/context/multi_agent_usage_hint.rs",
+    "codex-rs/core/src/context/network_rule_saved.rs",
+    "codex-rs/core/src/context/plugin_instructions.rs",
+    "codex-rs/core/src/context/realtime_delegation.rs",
+    "codex-rs/core/src/context/realtime_end_instructions.rs",
+    "codex-rs/core/src/context/realtime_start_instructions.rs",
+    "codex-rs/core/src/context/realtime_start_with_instructions.rs",
+    "codex-rs/core/src/context/recommended_plugins_instructions.rs",
+    "codex-rs/core/src/context/rollout_budget.rs",
+    "codex-rs/core/src/context/subagent_notification.rs",
+    "codex-rs/core/src/context/token_budget_context.rs",
+    "codex-rs/core/src/context/turn_aborted.rs",
+    "codex-rs/core/src/context/unsupported_media.rs",
+    "codex-rs/core/src/context/user_goal.rs",
+    "codex-rs/core/src/context/user_instructions.rs",
+    "codex-rs/core/src/context/user_shell_command.rs",
+    "codex-rs/core/src/context/user_verification_notice.rs",
+    "codex-rs/core/src/context/world_state/agents_md.rs",
+    "codex-rs/core/src/context/world_state/apps_instructions.rs",
+    "codex-rs/core/src/context/world_state/collaboration_mode.rs",
+    "codex-rs/core/src/context/world_state/compact_permissions.rs",
+    "codex-rs/core/src/context/world_state/context_window_guidance.rs",
+    "codex-rs/core/src/context/world_state/environment.rs",
+    "codex-rs/core/src/context/world_state/environments_instructions.rs",
+    "codex-rs/core/src/context/world_state/managed_developer_instructions.rs",
+    "codex-rs/core/src/context/world_state/mod.rs",
+    "codex-rs/core/src/context/world_state/model.rs",
+    "codex-rs/core/src/context/world_state/model_catalog.rs",
+    "codex-rs/core/src/context/world_state/multi_agent_mode.rs",
+    "codex-rs/core/src/context/world_state/multi_agent_usage_hint.rs",
+    "codex-rs/core/src/context/world_state/permissions.rs",
+    "codex-rs/core/src/context/world_state/persistent_mode.rs",
+    "codex-rs/core/src/context/world_state/plugins_instructions.rs",
+    "codex-rs/core/src/context/world_state/realtime.rs",
+    "codex-rs/core/src/context/world_state/tools.rs",
+    "codex-rs/core/src/context/world_state/top_level_tools.rs",
+    "codex-rs/core/src/plugins/injection.rs",
+    "codex-rs/core/src/plugins/mod.rs",
+    "codex-rs/core/src/plugins/render.rs",
+    "codex-rs/core/src/session/mod.rs",
+    "codex-rs/core/src/session/turn.rs",
+    "codex-rs/core/src/session/world_state.rs",
+    "codex-rs/core/src/tools/handlers/multi_agents_spec.rs",
+    "codex-rs/core/src/tools/spec_plan.rs",
+    "codex-rs/ext/skills/src/catalog_prompt.rs",
+    "codex-rs/ext/skills/src/extension.rs",
+    "codex-rs/ext/skills/src/fragments.rs",
+    "codex-rs/ext/skills/src/host_prompt.rs",
+    "codex-rs/ext/skills/src/host_roots.rs",
+    "codex-rs/ext/skills/src/lib.rs",
+    "codex-rs/ext/skills/src/loader/mod.rs",
+    "codex-rs/ext/skills/src/render.rs",
+    "codex-rs/ext/skills/src/render_dedup.rs",
+    "codex-rs/ext/skills/src/render_observability.rs",
+    "codex-rs/ext/skills/src/tools/mod.rs",
+    "codex-rs/ext/skills/src/world_state.rs",
+    "codex-rs/ext/skills/src/world_state_catalogs.rs",
+    "codex-rs/ext/web-search/src/public.rs",
+    "codex-rs/models-manager/src/model_info.rs",
+    "codex-rs/prompts/src/guardian_instructions.rs",
+    "codex-rs/prompts/src/model_messages/collaboration.rs",
+    "codex-rs/prompts/src/model_messages/multi_agent.rs",
+    "codex-rs/prompts/src/model_messages/permissions.rs",
+    "codex-rs/prompts/src/multi_agent_instructions.rs",
+    "codex-rs/prompts/src/permissions_instructions.rs"
+  ],
+  "legacy_files_not_normally_loaded": [
+    "codex-rs/core/gpt_5_codex_prompt.md",
+    "codex-rs/core/gpt_5_1_prompt.md",
+    "codex-rs/core/gpt_5_2_prompt.md",
+    "codex-rs/core/gpt-5.2-codex_prompt.md",
+    "codex-rs/core/gpt-5.1-codex-max_prompt.md",
+    "codex-rs/protocol/src/prompts/base_instructions/default.md"
+  ]
+}

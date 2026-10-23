@@ -1058,7 +1058,15 @@ impl App {
                     }
                 }
             },
-            AppEvent::Logout => match app_server.logout_account().await {
+            AppEvent::Login => {
+                if let Err(error) = self.login_provider(tui, app_server).await {
+                    self.chat_widget.add_error_message(format!("Provider connection failed: {error}"));
+                }
+            }
+            AppEvent::Logout => match app_server.logout_account(
+                (self.config.model_provider.model_catalog_format == codex_model_provider_info::ModelCatalogFormat::Openai)
+                    .then(|| self.config.model_provider_id.clone()),
+            ).await {
                 Ok(()) => {
                     self.show_shutdown_feedback(tui)?;
                     return Ok(self
@@ -1828,6 +1836,34 @@ impl App {
             AppEvent::AddCreditsNudgeEmailFinished { request_id, result } => {
                 self.chat_widget
                     .finish_add_credits_nudge_email_request(request_id, result);
+            }
+            AppEvent::RefreshProviderAccountStatus { model_provider, handle } => {
+                let request_handle = app_server.request_handle();
+                let tx = self.app_event_tx.clone();
+                tokio::spawn(async move {
+                    let request = request_handle.request_typed::<codex_app_server_protocol::ProviderAccountStatus>(
+                        codex_app_server_protocol::ClientRequest::GetProviderAccountStatus {
+                            request_id: codex_app_server_protocol::RequestId::String(format!(
+                                "provider-status-{}", uuid::Uuid::new_v4()
+                            )),
+                            params: codex_app_server_protocol::GetProviderAccountStatusParams {
+                                model_provider,
+                            },
+                        }
+                    );
+                    let result = match tokio::time::timeout(
+                        std::time::Duration::from_secs(15), request
+                    ).await {
+                        Ok(Ok(status)) => Ok(status),
+                        _ => Err("Unavailable; check the provider connection and retry later.".to_string()),
+                    };
+                    tx.send(AppEvent::ProviderAccountStatusLoaded { handle, result });
+                });
+            }
+            AppEvent::ProviderAccountStatusLoaded { handle, result } => {
+                // The handle belongs to the original /status card, even after provider switches.
+                handle.set_provider_account_status(result);
+                tui.frame_requester().schedule_frame();
             }
             AppEvent::RateLimitsLoaded {
                 request_id,

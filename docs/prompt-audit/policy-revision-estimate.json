@@ -1,0 +1,71 @@
+{
+  "date": "2026-10-23",
+  "method": "Estimated tokens = UTF-8 bytes / 4; excludes transport framing, provider-internal additions and conversation history.",
+  "policy_source": "codex-rs/models-manager/prompt.md",
+  "before_source_bytes": 9508,
+  "before_rendered_bytes": 9290,
+  "before_rendered_estimated_tokens": 2322.5,
+  "after_source_and_rendered_bytes": 4655,
+  "after_estimated_tokens": 1163.75,
+  "rendered_reduction_percent": 49.89,
+  "remaining_sections": [
+    "engineering_partner",
+    "grounding",
+    "engineering_design",
+    "validation_and_checks",
+    "task_authority",
+    "subagent_permission",
+    "response_style"
+  ],
+  "profiles": {
+    "minimal": {
+      "before_bytes": 31956,
+      "before_estimated_tokens": 7989.0,
+      "after_estimated_bytes": 27321,
+      "after_estimated_tokens": 6830.25,
+      "saved_bytes": 4635,
+      "saved_estimated_tokens": 1158.75,
+      "reduction_percent": 14.5,
+      "method": "Replace only engineering-policy fragment in prior captured profile; all other fragments and tool definitions held constant. Not a new request capture."
+    },
+    "default-mode": {
+      "before_bytes": 33961,
+      "before_estimated_tokens": 8490.25,
+      "after_estimated_bytes": 29326,
+      "after_estimated_tokens": 7331.5,
+      "saved_bytes": 4635,
+      "saved_estimated_tokens": 1158.75,
+      "reduction_percent": 13.65,
+      "method": "Replace only engineering-policy fragment in prior captured profile; all other fragments and tool definitions held constant. Not a new request capture."
+    },
+    "with-100-skills": {
+      "before_bytes": 37274,
+      "before_estimated_tokens": 9318.5,
+      "after_estimated_bytes": 32639,
+      "after_estimated_tokens": 8159.75,
+      "saved_bytes": 4635,
+      "saved_estimated_tokens": 1158.75,
+      "reduction_percent": 12.43,
+      "method": "Replace only engineering-policy fragment in prior captured profile; all other fragments and tool definitions held constant. Not a new request capture."
+    },
+    "lean-tools": {
+      "before_bytes": 19075,
+      "before_estimated_tokens": 4768.75,
+      "after_estimated_bytes": 14440,
+      "after_estimated_tokens": 3610.0,
+      "saved_bytes": 4635,
+      "saved_estimated_tokens": 1158.75,
+      "reduction_percent": 24.3,
+      "method": "Replace only engineering-policy fragment in prior captured profile; all other fragments and tool definitions held constant. Not a new request capture."
+    }
+  },
+  "tests_run": true,
+  "build_run": true,
+  "built_executable_updated": true,
+  "identity": "Memyr",
+  "identity_revision_note": "Native debug Memyr compiled by Cargo test and passed help/version/completion smoke checks; not installed.",
+  "release_build_run": false,
+  "installation_run": false,
+  "request_recaptured": false,
+  "verification_reference": "docs/memyr-command.md"
+}

@@ -144,6 +144,222 @@ fn test_model_provider() -> SharedModelProvider {
     test_model_client(SessionSource::Cli).state.provider.clone()
 }
 
+#[test]
+fn public_tool_aliases_round_trip_namespaces_without_collisions() -> anyhow::Result<()> {
+    use codex_tools::{ResponsesApiNamespace, ResponsesApiNamespaceTool};
+    let tool = |namespace: &str| {
+        ToolSpec::Namespace(ResponsesApiNamespace {
+            name: namespace.into(),
+            description: String::new(),
+            tools: vec![ResponsesApiNamespaceTool::Function(ResponsesApiTool {
+                name: "read".into(),
+                description: "Read data".into(),
+                strict: false,
+                defer_loading: None,
+                output_schema: None,
+                parameters: serde_json::from_value(json!({"type":"object","properties":{}}))
+                    .unwrap(),
+            })],
+        })
+    };
+    let specs = vec![tool("one"), tool("two")];
+    let flattened = super::public_history::tools(&specs)?;
+    assert_ne!(flattened[0].name(), flattened[1].name());
+    assert_eq!(flattened, super::public_history::tools(&specs)?);
+    let wire = serde_json::to_value(&flattened)?;
+    assert_eq!(wire[0]["type"], "function");
+    assert!(
+        wire[0]["description"]
+            .as_str()
+            .unwrap()
+            .contains("one.read")
+    );
+    let mut call: ResponseItem = serde_json::from_value(
+        json!({"type":"function_call","call_id":"call","name":flattened[0].name(),"arguments":"{}"}),
+    )?;
+    super::public_history::RestoreToolNames::new(&specs).restore(&mut call);
+    let restored = serde_json::to_value(&call)?;
+    assert_eq!(restored["namespace"], "one");
+    assert_eq!(restored["name"], "read");
+    let replay = super::public_history::prepare(vec![call], &test_model_info())?;
+    assert_eq!(
+        serde_json::to_value(replay)?[0]["name"],
+        flattened[0].name()
+    );
+    assert!(super::public_history::tools(&[specs[0].clone(), specs[0].clone()]).is_err());
+    Ok(())
+}
+
+#[test]
+fn public_responses_send_selected_reasoning_levels() -> anyhow::Result<()> {
+    for provider_id in ["deepseek", "ollama-cloud"] {
+        let mut client = test_model_client(SessionSource::Cli);
+        Arc::get_mut(&mut client.state).unwrap().provider = create_model_provider(
+            codex_model_provider_info::built_in_model_providers(None)[provider_id].clone(),
+            None,
+        );
+        let mut model = test_model_info();
+        model.supports_reasoning_summary_parameter = false;
+        model.default_reasoning_level = Some(ReasoningEffort::High);
+        model.supported_reasoning_levels = [
+            ReasoningEffort::None,
+            ReasoningEffort::Low,
+            ReasoningEffort::High,
+            ReasoningEffort::Max,
+        ]
+        .into_iter()
+        .map(|effort| ReasoningEffortPreset {
+            effort,
+            description: String::new(),
+        })
+        .collect();
+        let metadata = test_responses_metadata_for_client(
+            &client,
+            None,
+            "window".into(),
+            None,
+            TestCodexResponsesRequestKind::Turn,
+        );
+        for effort in [
+            None,
+            Some(ReasoningEffort::None),
+            Some(ReasoningEffort::Low),
+            Some(ReasoningEffort::High),
+            Some(ReasoningEffort::Max),
+        ] {
+            let expected = effort.clone().unwrap_or(ReasoningEffort::High);
+            let request = client.build_responses_request(
+                &Prompt::default(),
+                &model,
+                effort,
+                codex_protocol::config_types::ReasoningSummary::Auto,
+                None,
+                &metadata,
+                false,
+            )?;
+            let wire = serde_json::to_value(request)?;
+            assert_eq!(wire["reasoning"]["effort"], expected.as_str());
+            assert!(wire["reasoning"].get("summary").is_none());
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn public_responses_preserve_history_prefix_without_first_party_extensions() -> anyhow::Result<()> {
+    let mut client = test_model_client(SessionSource::Cli);
+    Arc::get_mut(&mut client.state).unwrap().provider = create_model_provider(
+        ModelProviderInfo {
+            name: "Public".into(),
+            base_url: Some("https://example.com/v1".into()),
+            model_catalog_format: codex_model_provider_info::ModelCatalogFormat::Openai,
+            ..Default::default()
+        },
+        None,
+    );
+    let original: Vec<ResponseItem> = serde_json::from_value(json!([
+        {"type":"message","role":"developer","content":[{"type":"input_text","text":"workspace policy"}]},
+        {"type":"message","role":"user","content":[{"type":"input_text","text":"old question"}]},
+        {"type":"custom_tool_call","call_id":"call-1","name":"exec","input":"original code","encrypted_content":"foreign-token"},
+        {"type":"custom_tool_call_output","call_id":"call-1","output":"original result"},
+        {"type":"reasoning","summary":[],"encrypted_content":"foreign-reasoning"}
+    ]))?;
+    let mut prompt = Prompt {
+        input: original.clone(),
+        base_instructions: BaseInstructions {
+            text: "engineering policy".into(),
+            provenance: None,
+        },
+        ..Default::default()
+    };
+    let metadata = test_responses_metadata_for_client(
+        &client,
+        None,
+        "window".into(),
+        None,
+        TestCodexResponsesRequestKind::Turn,
+    );
+    let mut model = test_model_info();
+    model.supported_reasoning_levels.clear();
+    let before = client.build_responses_request(
+        &prompt,
+        &model,
+        None,
+        codex_protocol::config_types::ReasoningSummary::None,
+        Some("priority".into()),
+        &metadata,
+        false,
+    )?;
+    let wire = serde_json::to_value(&before)?;
+    assert_eq!(wire["input"][0]["role"], "system");
+    assert_eq!(wire["input"][1]["role"], "system");
+    assert_eq!(wire["input"][3]["type"], "function_call");
+    assert_eq!(wire["input"][3]["call_id"], "call-1");
+    assert_eq!(wire["input"][4]["output"], "original result");
+    assert!(!wire.to_string().contains("foreign-token"));
+    assert!(!wire.to_string().contains("foreign-reasoning"));
+    assert!(before.prompt_cache_key.is_none());
+    assert!(before.client_metadata.is_none());
+    assert!(before.service_tier.is_none());
+    assert!(before.reasoning.is_none());
+    assert!(before.include.is_empty());
+    assert_eq!(prompt.input, original);
+    prompt.input.push(serde_json::from_value(json!({"type":"message","role":"user","content":[{"type":"input_text","text":"next question"}]}))?);
+    let after = client.build_responses_request(
+        &prompt,
+        &model,
+        None,
+        codex_protocol::config_types::ReasoningSummary::None,
+        None,
+        &metadata,
+        false,
+    )?;
+    assert_eq!(&after.input[..before.input.len()], before.input.as_slice());
+    Ok(())
+}
+
+#[test]
+fn public_history_rejects_opaque_compaction_and_preserves_visible_specialized_records()
+-> anyhow::Result<()> {
+    let model = test_model_info();
+    let compact =
+        serde_json::from_value(json!({"type":"compaction","encrypted_content":"opaque"}))?;
+    assert!(super::public_history::prepare(vec![compact], &model).is_err());
+    let records = serde_json::from_value(json!([
+        {"type":"web_search_call","status":"completed","action":{"type":"search","query":"old query"}},
+        {"type":"reasoning","summary":[],"content":[{"type":"reasoning_text","text":"visible reasoning"}],"encrypted_content":"opaque"}
+    ]))?;
+    let converted = super::public_history::prepare(records, &model)?;
+    let wire = serde_json::to_value(converted)?;
+    assert_eq!(wire[0]["type"], "message");
+    assert!(wire[0].to_string().contains("old query"));
+    assert_eq!(wire[1]["content"][0]["text"], "visible reasoning");
+    assert!(!wire.to_string().contains("opaque"));
+    Ok(())
+}
+
+#[test]
+fn public_history_never_turns_reasoning_summaries_into_assistant_messages() -> anyhow::Result<()> {
+    let input = serde_json::from_value(json!([
+        {"type":"reasoning","id":"rs_157424","summary":[{"type":"summary_text","text":"Use scratch page with render_mode=3."}]},
+        {"type":"reasoning","summary":[{"type":"summary_text","text":"summary"}],"content":[{"type":"reasoning_text","text":"native thinking"}]},
+        {"type":"message","role":"assistant","content":[{"type":"output_text","text":"Actual answer"}]}
+    ]))?;
+    let prepared = super::public_history::prepare(input, &test_model_info())?;
+    let wire = serde_json::to_value(prepared)?;
+    assert_eq!(wire[0]["type"], "reasoning");
+    assert_eq!(
+        wire[0]["content"][0]["text"],
+        "Use scratch page with render_mode=3."
+    );
+    assert_eq!(wire[1]["type"], "reasoning");
+    assert_eq!(wire[1]["content"][0]["text"], "native thinking");
+    assert_eq!(wire[2]["role"], "assistant");
+    assert_eq!(wire[2]["content"][0]["text"], "Actual answer");
+    assert!(!wire.to_string().contains("Historical provider record"));
+    Ok(())
+}
+
 #[tokio::test]
 async fn workspace_routed_http_rejects_redirects_without_a_routing_header() {
     use codex_client::HttpTransport;

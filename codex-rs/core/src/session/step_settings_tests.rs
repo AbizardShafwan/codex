@@ -450,6 +450,9 @@ async fn model_resolution_preserves_startup_overrides_and_instruction_provenance
 
     // Capture the same filtered explicit overrides that session startup owns.
     let overrides = ModelInfoOverrides::from(config.to_models_manager_config());
+    let lookup_config = overrides.models_manager_config(None);
+    assert!(lookup_config.model_catalog.is_none());
+    assert!(lookup_config.preserve_catalog_instructions);
 
     for (personality, catalog_instructions) in [
         (

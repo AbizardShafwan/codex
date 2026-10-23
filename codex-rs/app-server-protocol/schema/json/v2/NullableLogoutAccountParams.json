@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "anyOf": [
+    {
+      "$ref": "#/definitions/LogoutAccountParams"
+    },
+    {
+      "type": "null"
+    }
+  ],
+  "definitions": {
+    "LogoutAccountParams": {
+      "properties": {
+        "modelProvider": {
+          "description": "Remove only this public provider's saved key; environment keys are unchanged.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    }
+  },
+  "title": "Nullable_LogoutAccountParams"
+}

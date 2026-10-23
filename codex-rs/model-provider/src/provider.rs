@@ -13,6 +13,7 @@ use codex_login::CodexAuth;
 use codex_login::GatewayAuthManager;
 use codex_login::WorkspaceRoutingRequest;
 use codex_login::default_client::ClientRedirectPolicy;
+use codex_model_provider_info::ModelCatalogFormat;
 use codex_model_provider_info::ModelProviderInfo;
 use codex_models_manager::cache::ModelsCache;
 use codex_models_manager::manager::OpenAiModelsManager;
@@ -227,7 +228,12 @@ pub trait ModelProvider: fmt::Debug + Send + Sync {
     ) -> ModelProviderFuture<'a, codex_protocol::error::Result<ResolvedResponsesProvider>> {
         Box::pin(async move {
             let mut provider = self.api_provider().await?;
-            let mut redirect_policy = ClientRedirectPolicy::Default;
+            let mut redirect_policy =
+                if self.info().model_catalog_format == ModelCatalogFormat::Openai {
+                    ClientRedirectPolicy::Reject
+                } else {
+                    ClientRedirectPolicy::Default
+                };
             if provider_uses_first_party_auth_path(self.info())
                 && self.info().supports_codex_backend_routes()
                 && let Some(auth) = self.auth().await.filter(CodexAuth::is_chatgpt_auth)
@@ -341,6 +347,42 @@ fn provider_uses_first_party_auth_path(provider: &ModelProviderInfo) -> bool {
 }
 
 /// Creates the default runtime model provider for configured provider metadata.
+pub(crate) fn load_saved_provider_key(
+    provider: &mut ModelProviderInfo,
+    auth_manager: Option<&AuthManager>,
+) -> std::io::Result<()> {
+    if provider.model_catalog_format != ModelCatalogFormat::Openai
+        || provider.auth.is_some()
+        || provider.experimental_bearer_token.is_some()
+        || provider.requires_openai_auth
+    {
+        return Ok(());
+    }
+    let Some(env_key) = &provider.env_key else {
+        return Ok(());
+    };
+    // An explicit environment credential always wins over a saved login.
+    if std::env::var(env_key)
+        .ok()
+        .is_some_and(|key| !key.trim().is_empty())
+    {
+        return Ok(());
+    }
+    let Some(auth_manager) = auth_manager else {
+        return Ok(());
+    };
+    let store =
+        crate::ProviderApiKeyStore::new(&auth_manager.runtime_config().codex_home, provider)?;
+    if let Some(key) = store.load()? {
+        // Only this private runtime copy receives the token. Serialized user configuration,
+        // ChatGPT credentials and the TUI's provider definition remain unchanged.
+        provider.experimental_bearer_token = Some(key.into());
+        provider.env_key = None;
+    }
+    Ok(())
+}
+
+/// Creates the default runtime model provider for configured provider metadata.
 pub fn create_model_provider(
     provider_info: ModelProviderInfo,
     auth_manager: Option<Arc<AuthManager>>,
@@ -421,9 +463,12 @@ impl ConfiguredModelProvider {
                 OpenAiModelsManager::new_with_cache(cache, endpoint, auth_manager)
             }
         };
-        match &self.info.model_catalog_url {
-            Some(_) => Arc::new(manager.with_provider_catalog()),
-            None => Arc::new(manager),
+        if self.info.model_catalog_url.is_some()
+            || self.info.model_catalog_format == ModelCatalogFormat::Openai
+        {
+            Arc::new(manager.with_provider_catalog())
+        } else {
+            Arc::new(manager)
         }
     }
 }
@@ -451,6 +496,14 @@ impl ModelProvider for ConfiguredModelProvider {
     }
 
     fn auth_manager(&self) -> Option<Arc<AuthManager>> {
+        if self.info.model_catalog_format == ModelCatalogFormat::Openai
+            && !self.info.requires_openai_auth
+            && !self.info.has_command_auth()
+        {
+            // Keep the private manager for credential storage, but never refresh or
+            // recover an unrelated ChatGPT identity after a public-provider 401.
+            return None;
+        }
         self.auth_manager.clone()
     }
 
@@ -462,14 +515,22 @@ impl ModelProvider for ConfiguredModelProvider {
     }
 
     fn supports_attestation(&self) -> bool {
-        self.auth_manager
-            .as_ref()
-            .and_then(|auth_manager| auth_manager.auth_cached())
-            .is_some_and(|auth| auth.is_chatgpt_auth())
+        self.info.requires_openai_auth
+            && self
+                .auth_manager
+                .as_ref()
+                .and_then(|auth_manager| auth_manager.auth_cached())
+                .is_some_and(|auth| auth.is_chatgpt_auth())
     }
 
     fn auth(&self) -> ModelProviderFuture<'_, Option<CodexAuth>> {
         Box::pin(async move {
+            if self.info.model_catalog_format == ModelCatalogFormat::Openai
+                && !self.info.requires_openai_auth
+                && !self.info.has_command_auth()
+            {
+                return None;
+            }
             match self.auth_manager.as_ref() {
                 Some(auth_manager) => auth_manager.auth().await,
                 None => None,
@@ -481,8 +542,14 @@ impl ModelProvider for ConfiguredModelProvider {
         &self,
     ) -> ModelProviderFuture<'_, codex_protocol::error::Result<SharedAuthProvider>> {
         Box::pin(async move {
+            let mut info = self.info.clone();
+            load_saved_provider_key(&mut info, self.auth_manager.as_deref()).map_err(|_| {
+                CodexErr::InvalidRequest(
+                    "Failed to load provider credentials. Run /login to reconnect.".to_string(),
+                )
+            })?;
             let auth = self.auth().await;
-            let primary = resolve_provider_auth(auth.as_ref(), &self.info)?;
+            let primary = resolve_provider_auth(auth.as_ref(), &info)?;
             Ok(compose_auth(
                 &self.info,
                 self.gateway_auth_manager.as_ref(),
@@ -498,6 +565,9 @@ impl ModelProvider for ConfiguredModelProvider {
         scope: ProviderAuthScope,
     ) -> ModelProviderFuture<'_, codex_protocol::error::Result<ResolvedProviderAuth>> {
         Box::pin(async move {
+            if self.info.model_catalog_format == ModelCatalogFormat::Openai {
+                return self.api_auth().await.map(ResolvedProviderAuth::new);
+            }
             let resolved = if provider_uses_first_party_auth_path(&self.info) {
                 let auth = self.auth().await;
                 resolve_provider_auth_for_scope(
@@ -645,6 +715,7 @@ mod tests {
             name: "mock".into(),
             base_url: Some(base_url),
             model_catalog_url: None,
+            model_catalog_format: Default::default(),
             env_key: None,
             env_key_instructions: None,
             experimental_bearer_token: None,
@@ -1410,5 +1481,42 @@ printf '%s\n' '{"AccessKeyId":"exported","SecretAccessKey":"secret"}'
                 );
             }
         }
+    }
+
+    #[tokio::test]
+    async fn public_provider_does_not_inherit_or_refresh_an_ambient_chatgpt_account() {
+        let provider = create_model_provider(
+            ModelProviderInfo {
+                name: "Public".into(),
+                base_url: Some("https://provider.example/v1".into()),
+                model_catalog_format: ModelCatalogFormat::Openai,
+                experimental_bearer_token: Some("provider-key".into()),
+                ..Default::default()
+            },
+            Some(AuthManager::from_auth_for_testing(
+                CodexAuth::create_dummy_chatgpt_auth_for_testing(),
+            )),
+        );
+        assert!(provider.auth().await.is_none());
+        assert!(provider.auth_manager().is_none());
+        assert!(!provider.supports_attestation());
+        assert!(provider.account_state().unwrap().account.is_none());
+        let headers = provider
+            .api_auth()
+            .await
+            .unwrap()
+            .to_auth_headers()
+            .unwrap();
+        assert_eq!(headers["authorization"], "Bearer provider-key");
+        assert!(!headers.contains_key("chatgpt-account-id"));
+        let routing = WorkspaceRoutingContext::new("https://chatgpt.com/backend-api".into());
+        assert!(matches!(
+            provider
+                .responses_api_provider(&routing)
+                .await
+                .unwrap()
+                .redirect_policy,
+            ClientRedirectPolicy::Reject
+        ));
     }
 }

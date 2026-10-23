@@ -180,7 +180,7 @@ impl CatalogRequestProcessor {
     ) -> Result<Option<ClientResponsePayload>, JSONRPCErrorError> {
         let (config, models_manager) = self
             .model_catalog
-            .current()
+            .for_provider(params.model_provider.as_deref())
             .await
             .map_err(|err| config_load_error(&err))?;
         // Gate the same provider used by the catalog, including when its model cache is warm.
@@ -289,6 +289,7 @@ impl CatalogRequestProcessor {
         models_manager: codex_models_manager::manager::SharedModelsManager,
     ) -> Result<ModelListResponse, JSONRPCErrorError> {
         let ModelListParams {
+            model_provider: _,
             limit,
             cursor,
             include_hidden,

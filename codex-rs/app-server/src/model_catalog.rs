@@ -78,7 +78,9 @@ impl ModelCatalog {
                 config,
                 used_defaults,
             } = config;
-            if config.model_provider_id != state.config.model_provider_id
+            if config.model_provider.model_catalog_format
+                == codex_model_provider_info::ModelCatalogFormat::Openai
+                || config.model_provider_id != state.config.model_provider_id
                 || config.model_provider != state.config.model_provider
                 || config.model_catalog != state.config.model_catalog
             {
@@ -93,6 +95,39 @@ impl ModelCatalog {
             state.needs_reload = used_defaults;
         }
         Ok((Arc::clone(&state.config), Arc::clone(&state.models_manager)))
+    }
+
+    pub(crate) async fn for_provider(
+        &self,
+        provider_id: Option<&str>,
+    ) -> std::io::Result<(Arc<Config>, SharedModelsManager)> {
+        let (config, models_manager) = self.current().await?;
+        let Some(provider_id) = provider_id.filter(|id| *id != config.model_provider_id) else {
+            return Ok((config, models_manager));
+        };
+        if config
+            .config_layer_stack
+            .required_model_provider()
+            .is_some_and(|required| required != provider_id)
+        {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "The selected provider is disabled by managed configuration.",
+            ));
+        }
+        let provider = config
+            .model_providers
+            .get(provider_id)
+            .ok_or_else(|| std::io::Error::other("Unknown model provider."))?
+            .clone();
+        let mut config = (*config).clone();
+        config.model_provider_id = provider_id.to_string();
+        config.model_provider = provider;
+        // An explicitly configured model catalog belongs to the startup provider.
+        config.model_catalog = None;
+        let models_manager =
+            codex_core::build_models_manager(&config, Arc::clone(&self.auth_manager));
+        Ok((Arc::new(config), models_manager))
     }
 
     pub(crate) async fn list_models(

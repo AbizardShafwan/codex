@@ -9,4 +9,6 @@ pub struct ModelsManagerConfig {
     pub base_instructions: Option<String>,
     pub personality: Option<Personality>,
     pub model_catalog: Option<ModelsResponse>,
+    /// Preserve explicit catalog prompt customization when the catalog payload is already owned.
+    pub preserve_catalog_instructions: bool,
 }

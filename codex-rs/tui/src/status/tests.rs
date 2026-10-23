@@ -1487,6 +1487,79 @@ async fn status_card_token_usage_excludes_cached_tokens() {
 }
 
 #[tokio::test]
+async fn provider_account_status_card_displays_native_limits_resets_and_currency() {
+    use codex_protocol::account::{ProviderAccountStatus, ProviderBalance, ProviderUsageWindow};
+    let home = TempDir::new().unwrap();
+    let config = test_config(&home).await;
+    let usage = TokenUsage::default();
+    let (status, handle) = new_status_output_with_rate_limits_handle(
+        &config,
+        false,
+        Some("ollama-cloud"),
+        None,
+        None,
+        None,
+        &usage,
+        &None,
+        None,
+        None,
+        &[],
+        None,
+        Local::now(),
+        "deepseek-v4.1-flash:1017",
+        None,
+        None,
+        "<none>".into(),
+        false,
+    );
+    handle.set_provider_account_status(Ok(ProviderAccountStatus {
+        limits: vec![
+            ProviderUsageWindow {
+                label: "5h limit".into(),
+                remaining_percent: 75.0,
+                resets_at: Some(1_790_834_400),
+            },
+            ProviderUsageWindow {
+                label: "Weekly limit".into(),
+                remaining_percent: 40.0,
+                resets_at: Some(1_791_158_400),
+            },
+        ],
+        balances: vec![ProviderBalance {
+            label: "Balance".into(),
+            currency: "USD".into(),
+            amount: "110.000001".into(),
+            resets_at: None,
+        }],
+    }));
+    let text = handle.copy_text();
+    for expected in [
+        "5h limit",
+        "75% left",
+        "Weekly limit",
+        "40% left",
+        "resets",
+        "110.000001 USD",
+    ] {
+        assert!(text.contains(expected), "missing {expected}: {text}");
+    }
+    assert!(!text.contains("data not available"));
+    for width in [24, 40, 80] {
+        assert!(
+            status
+                .display_lines(width)
+                .iter()
+                .all(|line| line.width() <= usize::from(width))
+        );
+    }
+    handle.set_provider_account_status(Err("Unavailable; retry later.".into()));
+    let text = handle.copy_text();
+    assert!(text.contains("Unavailable; retry later."));
+    assert!(!text.contains("75% left"));
+    assert!(!text.contains("110.000001"));
+}
+
+#[tokio::test]
 async fn status_wraps_long_paths_and_session_ids_without_losing_text() {
     let temp_home = TempDir::new().expect("temp home");
     let mut config = test_config(&temp_home).await;

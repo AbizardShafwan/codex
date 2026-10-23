@@ -3787,6 +3787,49 @@ async fn model_advanced_reasoning_selection_popup_snapshot() {
 }
 
 #[tokio::test]
+async fn public_provider_reasoning_picker_offers_and_applies_advertised_levels() {
+    for (provider_id, slug) in [
+        ("deepseek", "deepseek-flash"),
+        ("ollama-cloud", "deepseek-v4.1-flash:1017"),
+    ] {
+        let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(Some("gpt-5.5")).await;
+        let mut preset = get_available_model(&chat, "gpt-5.5");
+        preset.id = slug.into();
+        preset.model = slug.into();
+        preset.display_name = slug.into();
+        preset.default_reasoning_effort = ReasoningEffortConfig::High;
+        preset.supported_reasoning_efforts = [
+            ReasoningEffortConfig::None,
+            ReasoningEffortConfig::Low,
+            ReasoningEffortConfig::High,
+            ReasoningEffortConfig::Max,
+        ]
+        .into_iter()
+        .map(|effort| ReasoningEffortPreset {
+            effort,
+            description: String::new(),
+        })
+        .collect();
+        chat.config.model_provider_id = provider_id.into();
+        chat.config.model_provider =
+            codex_model_provider_info::built_in_model_providers(None)[provider_id].clone();
+        chat.open_reasoning_popup(preset.clone());
+        let popup = render_bottom_popup(&chat, 100);
+        for label in ["None", "Low", "High", "More reasoning"] {
+            assert!(popup.contains(label), "{provider_id}: {popup}");
+        }
+        while rx.try_recv().is_ok() {}
+        // High is the default; move up to Low and confirm.
+        chat.handle_key_event(KeyCode::Up.into());
+        chat.handle_key_event(KeyCode::Enter.into());
+        assert!(std::iter::from_fn(|| rx.try_recv().ok()).any(|event| matches!(event, AppEvent::PersistModelSelection {model, effort: Some(ReasoningEffortConfig::Low)} if model == slug)));
+        chat.open_advanced_reasoning_popup(preset);
+        let popup = render_bottom_popup(&chat, 100);
+        assert!(popup.contains("Max"), "{provider_id}: {popup}");
+    }
+}
+
+#[tokio::test]
 async fn model_reasoning_selection_popup_applies_custom_effort() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(Some("gpt-5.5")).await;
     let custom_effort = ReasoningEffortConfig::Custom("future".to_string());

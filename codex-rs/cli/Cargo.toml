@@ -4,8 +4,14 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 build = "build.rs"
-default-run = "codex"
+default-run = "memyr"
 
+[[bin]]
+name = "memyr"
+path = "src/memyr.rs"
+test = false
+
+# Compatibility entry point for existing clients and development tooling.
 [[bin]]
 name = "codex"
 path = "src/main.rs"

@@ -62,6 +62,14 @@ impl From<ProviderAccount> for Account {
 #[ts(tag = "type")]
 #[ts(export_to = "v2/")]
 pub enum LoginAccountParams {
+    /// Save a provider-scoped API key without replacing the ChatGPT account.
+    #[serde(rename = "providerApiKey", rename_all = "camelCase")]
+    #[ts(rename = "providerApiKey", rename_all = "camelCase")]
+    ProviderApiKey {
+        provider_id: String,
+        #[ts(type = "string")]
+        api_key: codex_utils_redacted_string::RedactedString,
+    },
     #[serde(rename = "apiKey", rename_all = "camelCase")]
     #[ts(rename = "apiKey", rename_all = "camelCase")]
     ApiKey {
@@ -134,6 +142,9 @@ pub enum LoginAppBrand {
 #[ts(tag = "type")]
 #[ts(export_to = "v2/")]
 pub enum LoginAccountResponse {
+    #[serde(rename = "providerApiKey", rename_all = "camelCase")]
+    #[ts(rename = "providerApiKey", rename_all = "camelCase")]
+    ProviderApiKey { provider_id: String },
     #[serde(rename = "apiKey", rename_all = "camelCase")]
     #[ts(rename = "apiKey", rename_all = "camelCase")]
     ApiKey {},
@@ -265,6 +276,18 @@ pub enum AccountSessionWorkspaceKind {
 #[ts(export_to = "v2/")]
 pub struct LogoutAccountResponse {}
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct LogoutAccountParams {
+    /// Remove only this public provider's saved key; environment keys are unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub model_provider: Option<String>,
+}
+
+pub type NullableLogoutAccountParams = Option<LogoutAccountParams>;
+
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]
@@ -324,6 +347,15 @@ pub struct GetAccountRateLimitsParams {
 }
 
 pub type NullableGetAccountRateLimitsParams = Option<GetAccountRateLimitsParams>;
+
+pub use codex_protocol::account::ProviderAccountStatus;
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct GetProviderAccountStatusParams {
+    pub model_provider: String,
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]

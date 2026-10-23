@@ -65,7 +65,7 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--variant",
         choices=sorted(PACKAGE_VARIANTS),
-        default="codex",
+        default="memyr",
         help="Package variant to build.",
     )
     parser.add_argument(

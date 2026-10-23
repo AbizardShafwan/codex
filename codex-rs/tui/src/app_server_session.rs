@@ -698,10 +698,18 @@ impl AppServerSession {
     async fn bootstrap_with_account_inner(
         &mut self,
         config: &Config,
-        account: GetAccountResponse,
+        mut account: GetAccountResponse,
         fallback: EmptyCatalogFallback,
     ) -> Result<AppServerBootstrap> {
         let started_at = Instant::now();
+        if config.model_provider.model_catalog_format
+            == codex_model_provider_info::ModelCatalogFormat::Openai
+        {
+            // Account RPCs describe the server's startup account, not necessarily this
+            // thread's provider. Never expose ChatGPT-only controls on a public route.
+            account.account = Some(Account::ApiKey {});
+            account.requires_openai_auth = false;
+        }
         // `hooks/list` holds the global config queue during startup. Submit models and config
         // requirements together so an uncached model fetch can overlap both config requests.
         let model_request_id = self.next_request_id();
@@ -712,6 +720,7 @@ impl AppServerSession {
                     .request_typed::<ModelListResponse>(ClientRequest::ModelList {
                         request_id: model_request_id,
                         params: ModelListParams {
+                            model_provider: self.explicit_model_provider(config),
                             cursor: None,
                             limit: None,
                             include_hidden: Some(true),
@@ -1667,13 +1676,15 @@ impl AppServerSession {
             .wrap_err("thread/goal/clear failed in TUI")
     }
 
-    pub(crate) async fn logout_account(&mut self) -> Result<()> {
+    pub(crate) async fn logout_account(&mut self, provider_id: Option<String>) -> Result<()> {
         let request_id = self.next_request_id();
         let _: LogoutAccountResponse = self
             .client
             .request_typed(ClientRequest::LogoutAccount {
                 request_id,
-                params: None,
+                params: provider_id.map(|id| codex_app_server_protocol::LogoutAccountParams {
+                    model_provider: Some(id),
+                }),
             })
             .await
             .wrap_err("account/logout failed in TUI")?;

@@ -267,6 +267,17 @@ impl ChatWidget {
             agents_summary,
             refreshing_rate_limits,
         );
+        if matches!(
+            self.config.model_provider_id.as_str(),
+            "deepseek" | "ollama-cloud"
+        ) {
+            handle.set_provider_account_status(Err("Refreshing…".into()));
+            self.app_event_tx
+                .send(AppEvent::RefreshProviderAccountStatus {
+                    model_provider: self.config.model_provider_id.clone(),
+                    handle: handle.clone(),
+                });
+        }
         if let Some(request_id) = request_id {
             self.refreshing_status_outputs
                 .push((request_id, handle.clone()));

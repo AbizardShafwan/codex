@@ -175,6 +175,7 @@ fn model_provider_from_proto(
         name: provider.name,
         base_url: provider.base_url,
         model_catalog_url: provider.model_catalog_url.map(Into::into),
+        model_catalog_format: Default::default(),
         env_key: provider.env_key,
         env_key_instructions: provider.env_key_instructions,
         experimental_bearer_token: provider.experimental_bearer_token.map(Into::into),

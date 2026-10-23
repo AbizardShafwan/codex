@@ -1,0 +1,98 @@
+{
+  "method": "UTF-8 bytes / 4; no framing; no history; normalized Pi paths /opt/pi and /workspace",
+  "pi": {
+    "prompt": {
+      "bytes": 2541,
+      "estimated_tokens": 635.25
+    },
+    "sections": {
+      "preamble": {
+        "bytes": 169,
+        "estimated_tokens": 42.25
+      },
+      "tools": {
+        "bytes": 339,
+        "estimated_tokens": 84.75
+      },
+      "rules": {
+        "bytes": 839,
+        "estimated_tokens": 209.75
+      },
+      "docs": {
+        "bytes": 1163,
+        "estimated_tokens": 290.75
+      },
+      "cwd": {
+        "bytes": 23,
+        "estimated_tokens": 5.75
+      }
+    },
+    "tools": {
+      "count": 4,
+      "compact_json_bytes": 2841,
+      "estimated_tokens": 710.25,
+      "method": "Reconstructed Chat Completions function definitions using TypeBox input schemas. No strict-mode rewriting or transport metadata."
+    },
+    "total_without_skills_or_project": {
+      "bytes": 5382,
+      "estimated_tokens": 1345.5
+    }
+  },
+  "opencode": {
+    "default": {
+      "bytes": 1471,
+      "estimated_tokens": 367.75
+    },
+    "gpt": {
+      "bytes": 3287,
+      "estimated_tokens": 821.75
+    },
+    "gpt-astra": {
+      "bytes": 4540,
+      "estimated_tokens": 1135
+    },
+    "claude": {
+      "bytes": 1773,
+      "estimated_tokens": 443.25
+    },
+    "kimi": {
+      "bytes": 8701,
+      "estimated_tokens": 2175.25
+    },
+    "trinity": {
+      "bytes": 7684,
+      "estimated_tokens": 1921
+    },
+    "meta": {
+      "bytes": 7857,
+      "estimated_tokens": 1964.25
+    }
+  },
+  "fork": {
+    "core_policy": {
+      "kind": "engineering policy",
+      "role": "system",
+      "bytes": 9290,
+      "characters": 9290
+    },
+    "instructions_excluding_skills_bytes": 12117,
+    "tools_bytes": 18668,
+    "total_excluding_skills_bytes": 30785,
+    "captured_total_bytes": 33961
+  },
+  "provenance": {
+    "pi": {
+      "repository": "earendil-works/pi",
+      "commit": "936e5f40aede9327b9142b63506ed2b68bc6b4ac",
+      "measurement": "offline source reconstruction"
+    },
+    "opencode": {
+      "repository": "anomalyco/opencode",
+      "commit": "8c5b202815d4ff35a0e8bac7e99fb26de92f3746",
+      "measurement": "selected base prompt source reconstruction only; complete request not measured"
+    },
+    "fork": {
+      "measurement": "earlier executable request capture to local mock; see comparison.json"
+    }
+  }
+}

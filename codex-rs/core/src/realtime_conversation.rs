@@ -1352,6 +1352,11 @@ async fn prepare_realtime_start(
     params: ConversationStartParams,
 ) -> CodexResult<PreparedRealtimeConversationStart> {
     let provider = sess.provider().await;
+    if !provider.supports_realtime() {
+        return Err(CodexErr::InvalidRequest(
+            "The selected provider does not support realtime conversations.".to_string(),
+        ));
+    }
     let auth_manager = sess
         .services
         .model_client

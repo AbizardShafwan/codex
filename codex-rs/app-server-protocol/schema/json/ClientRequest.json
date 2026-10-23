@@ -1676,6 +1676,17 @@
       },
       "type": "object"
     },
+    "GetProviderAccountStatusParams": {
+      "properties": {
+        "modelProvider": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "modelProvider"
+      ],
+      "type": "object"
+    },
     "HookMigration": {
       "properties": {
         "name": {
@@ -1898,6 +1909,31 @@
     "LoginAccountParams": {
       "oneOf": [
         {
+          "description": "Save a provider-scoped API key without replacing the ChatGPT account.",
+          "properties": {
+            "apiKey": {
+              "type": "string"
+            },
+            "providerId": {
+              "type": "string"
+            },
+            "type": {
+              "enum": [
+                "providerApiKey"
+              ],
+              "title": "ProviderApiKeyLoginAccountParamsType",
+              "type": "string"
+            }
+          },
+          "required": [
+            "apiKey",
+            "providerId",
+            "type"
+          ],
+          "title": "ProviderApiKeyLoginAccountParams",
+          "type": "object"
+        },
+        {
           "properties": {
             "apiKey": {
               "type": "string"
@@ -2068,6 +2104,18 @@
         "chatgpt"
       ],
       "type": "string"
+    },
+    "LogoutAccountParams": {
+      "properties": {
+        "modelProvider": {
+          "description": "Remove only this public provider's saved key; environment keys are unchanged.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
     },
     "MarketplaceAddParams": {
       "properties": {
@@ -2395,6 +2443,13 @@
           "minimum": 0.0,
           "type": [
             "integer",
+            "null"
+          ]
+        },
+        "modelProvider": {
+          "description": "Select a configured provider without changing the active thread or saved defaults.",
+          "type": [
+            "string",
             "null"
           ]
         }
@@ -8322,7 +8377,14 @@
           "type": "string"
         },
         "params": {
-          "type": "null"
+          "anyOf": [
+            {
+              "$ref": "#/definitions/LogoutAccountParams"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -8360,6 +8422,30 @@
         "method"
       ],
       "title": "Account/rateLimits/readRequest",
+      "type": "object"
+    },
+    {
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/RequestId"
+        },
+        "method": {
+          "enum": [
+            "provider/account/read"
+          ],
+          "title": "Provider/account/readRequestMethod",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/definitions/GetProviderAccountStatusParams"
+        }
+      },
+      "required": [
+        "id",
+        "method",
+        "params"
+      ],
+      "title": "Provider/account/readRequest",
       "type": "object"
     },
     {

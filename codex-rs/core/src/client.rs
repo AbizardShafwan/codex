@@ -35,6 +35,9 @@ use std::sync::atomic::Ordering;
 #[path = "client_tool_metadata.rs"]
 mod tool_metadata;
 
+#[path = "client_public_history.rs"]
+mod public_history;
+
 use crate::CodexResponsesHeaders;
 use crate::PromptCacheKey;
 use crate::tools::ExecutedToolCalls;
@@ -1005,6 +1008,8 @@ impl ModelClient {
             });
         }
         let is_openai = self.state.provider.info().is_openai();
+        let public_api = self.state.provider.info().model_catalog_format
+            == codex_model_provider_info::ModelCatalogFormat::Openai;
         // These prompt-only items are rebuilt on every request. Hash their visible payloads
         // within the thread so retries and resumed sessions preserve their identity.
         let prefix_namespace = Uuid::new_v5(
@@ -1026,7 +1031,15 @@ impl ModelClient {
             }
             None
         } else {
-            Some(create_tools_raw_json_for_responses_api(&prompt.tools)?.into())
+            let public_tools = public_api
+                .then(|| public_history::tools(&prompt.tools))
+                .transpose()?;
+            Some(
+                create_tools_raw_json_for_responses_api(
+                    public_tools.as_deref().unwrap_or(&prompt.tools),
+                )?
+                .into(),
+            )
         };
         if !prompt.base_instructions.text.is_empty() {
             let mut instructions = ContextualUserFragment::into(BaseInstructionsFragment(
@@ -1039,6 +1052,18 @@ impl ModelClient {
             prefix.push(instructions);
         }
         input.splice(0..0, prefix);
+        if public_api {
+            // These APIs support system messages, but may treat developer messages as user
+            // content. Adapt only the request copy, preserving order and durable history.
+            for item in &mut input {
+                if let ResponseItem::Message { role, .. } = item
+                    && role == "developer"
+                {
+                    *role = "system".to_string();
+                }
+            }
+            input = public_history::prepare(input, model_info)?;
+        }
         if !model_info.use_responses_lite {
             // Only RLite accepts per-content attribution until the Responses API schema expands.
             for item in &mut input {
@@ -1109,7 +1134,7 @@ impl ModelClient {
             }
         }
         let client_metadata = responses_metadata.client_metadata(include_internal);
-        let request = ResponsesApiRequest {
+        let mut request = ResponsesApiRequest {
             model: model_info.slug.clone(),
             input,
             tools,
@@ -1126,6 +1151,19 @@ impl ModelClient {
             client_metadata: Some(client_metadata),
             access_programs: None,
         };
+        if public_api {
+            // Both built-in public providers use stateless Responses. DeepSeek manages
+            // prefix caching automatically; OpenAI's cache keys and replay extensions do
+            // not enable caching there. Keep the actual instruction/history prefix stable.
+            request.include.clear();
+            request.prompt_cache_key = None;
+            request.stream_options = None;
+            request.service_tier = None;
+            request.client_metadata = None;
+            if model_info.supported_reasoning_levels.is_empty() {
+                request.reasoning = None;
+            }
+        }
         Ok(request)
     }
 
@@ -1900,13 +1938,23 @@ impl ResponsesHttpExecutor<'_> {
             let request_session_telemetry =
                 session_telemetry_for_request(session_telemetry, &request);
             options.extra_headers.extend(responses_headers);
-            let interceptors = crate::model_request::prepare(
+            let mut interceptors = crate::model_request::prepare(
                 &self.client.request_contributors,
                 &self.client.state.thread_id.to_string(),
                 &model_info.slug,
                 codex_extension_api::ModelRequestKind::Generation,
                 &mut request.client_metadata,
             );
+            if self.client.state.provider.info().model_catalog_format
+                == codex_model_provider_info::ModelCatalogFormat::Openai
+            {
+                interceptors.push(Box::new(public_history::RestoreToolNames::new(
+                    &prompt.tools,
+                )));
+                // Contributors may add first-party metadata after request construction.
+                request.client_metadata = None;
+                request.access_programs = None;
+            }
             let inference_trace_attempt = inference_trace.start_attempt();
             inference_trace_attempt.add_request_headers(&mut options.extra_headers);
             if let Some(input) = tool_metadata::bounded_input(&request, &request.input) {

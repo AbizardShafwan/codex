@@ -1,6 +1,7 @@
 //! Provider capability defaults and resolution of custom provider overrides.
 
 use codex_api::is_azure_responses_provider;
+use codex_model_provider_info::ModelCatalogFormat;
 use codex_model_provider_info::ModelProviderInfo;
 use codex_model_provider_info::RemoteCompactionSupport;
 
@@ -30,6 +31,11 @@ impl Default for ProviderCapabilities {
 impl ProviderCapabilities {
     pub(crate) fn from_config(info: &ModelProviderInfo) -> Self {
         let defaults = Self {
+            image_generation: info.model_catalog_format != ModelCatalogFormat::Openai,
+            web_search: info.model_catalog_format != ModelCatalogFormat::Openai
+                || info.has_native_web_tools(),
+            external_web_access: info.model_catalog_format != ModelCatalogFormat::Openai
+                || info.has_native_web_tools(),
             remote_compaction: if info.is_openai()
                 || is_azure_responses_provider(&info.name, info.base_url.as_deref())
             {
@@ -37,17 +43,19 @@ impl ProviderCapabilities {
             } else {
                 RemoteCompactionSupport::Unsupported
             },
-            ..Self::default()
         };
         let overrides = info.capabilities.unwrap_or_default();
         Self {
+            image_generation: overrides
+                .image_generation
+                .unwrap_or(defaults.image_generation),
+            web_search: overrides.web_search.unwrap_or(defaults.web_search),
             external_web_access: overrides
                 .external_web_access
                 .unwrap_or(defaults.external_web_access),
             remote_compaction: overrides
                 .remote_compaction
                 .unwrap_or(defaults.remote_compaction),
-            ..defaults
         }
     }
 }

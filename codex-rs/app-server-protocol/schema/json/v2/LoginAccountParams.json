@@ -11,6 +11,31 @@
   },
   "oneOf": [
     {
+      "description": "Save a provider-scoped API key without replacing the ChatGPT account.",
+      "properties": {
+        "apiKey": {
+          "type": "string"
+        },
+        "providerId": {
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "providerApiKey"
+          ],
+          "title": "ProviderApiKeyv2::LoginAccountParamsType",
+          "type": "string"
+        }
+      },
+      "required": [
+        "apiKey",
+        "providerId",
+        "type"
+      ],
+      "title": "ProviderApiKeyv2::LoginAccountParams",
+      "type": "object"
+    },
+    {
       "properties": {
         "apiKey": {
           "type": "string"

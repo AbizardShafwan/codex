@@ -89,6 +89,30 @@ async fn status_command_renders_immediately_without_rate_limit_refresh() {
 }
 
 #[tokio::test]
+async fn status_command_requests_selected_public_provider_account_without_chatgpt_limits() {
+    for provider_id in ["deepseek", "ollama-cloud"] {
+        let (mut chat, mut rx, _ops) = make_chatwidget_manual(None).await;
+        chat.config.model_provider_id = provider_id.into();
+        chat.config.model_provider =
+            codex_model_provider_info::built_in_model_providers(None)[provider_id].clone();
+        chat.requires_openai_auth = false;
+        chat.dispatch_command(SlashCommand::Status);
+        let events = std::iter::from_fn(|| rx.try_recv().ok()).collect::<Vec<_>>();
+        assert!(events.iter().any(|event| matches!(event, AppEvent::RefreshProviderAccountStatus {model_provider, ..} if model_provider == provider_id)));
+        assert!(
+            events
+                .iter()
+                .any(|event| matches!(event, AppEvent::InsertHistoryCell(_)))
+        );
+        assert!(
+            !events
+                .iter()
+                .any(|event| matches!(event, AppEvent::RefreshRateLimits { .. }))
+        );
+    }
+}
+
+#[tokio::test]
 async fn status_command_uses_catalog_default_reasoning_when_config_empty() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(Some("gpt-5.5")).await;
     chat.config.model_reasoning_effort = None;

@@ -8,7 +8,7 @@ load("//bazel/rules:runtime_package.bzl", "release_binary")
 
 codex_rust_crate(
     name = "cli",
-    binaries_with_build_commit = ["codex"],
+    binaries_with_build_commit = ["codex", "memyr"],
     crate_name = "codex_cli",
     extra_binaries = [
         "//codex-rs/bwrap:bwrap",
@@ -48,6 +48,11 @@ rust_test(
 
 release_binary(
     binary = ":codex",
+)
+
+release_binary(
+    name = "memyr-release",
+    binary = ":memyr",
 )
 
 multiplatform_binaries(

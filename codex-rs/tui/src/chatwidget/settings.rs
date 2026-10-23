@@ -241,6 +241,15 @@ impl ChatWidget {
     ) {
         // Account-update notifications are the identity boundary. The visible account fields can
         // be identical across two accounts, so always invalidate account-scoped requests and data.
+        let public_provider = self.config.model_provider.model_catalog_format
+            == codex_model_provider_info::ModelCatalogFormat::Openai;
+        let has_chatgpt_account = has_chatgpt_account && !public_provider;
+        let has_codex_backend_auth = has_codex_backend_auth && !public_provider;
+        let (status_account_display, plan_type) = if public_provider {
+            (Some(StatusAccountDisplay::ApiKey), None)
+        } else {
+            (status_account_display, plan_type)
+        };
         self.model_popup_request_id = None;
         let api_key_changed = self.status_account_display == Some(StatusAccountDisplay::ApiKey)
             || status_account_display == Some(StatusAccountDisplay::ApiKey);

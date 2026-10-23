@@ -25,6 +25,11 @@ pub(crate) fn identity(
     field(b"models-cache-v1");
     field(api_provider.name.as_bytes());
     field(api_provider.base_url.as_bytes());
+    if provider_info.model_catalog_format == codex_model_provider_info::ModelCatalogFormat::Openai {
+        // Public capabilities now include native thinking metadata. Invalidate ID-only
+        // catalogs even in development builds whose CLI version remains 0.0.0.
+        field(b"public-model-catalog-v2-thinking");
+    }
     // Preserve existing cache identities when no explicit catalog is configured.
     // The API provider resolves base_url defaults; model_catalog_url stays on ModelProviderInfo.
     if let Some(catalog_url) = &provider_info.model_catalog_url {

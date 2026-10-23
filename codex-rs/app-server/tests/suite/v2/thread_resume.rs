@@ -6575,3 +6575,68 @@ async fn setup_rollout_fixture(codex_home: &Path, server_uri: &str) -> Result<Ro
         rollout_file_path,
     })
 }
+
+#[tokio::test]
+async fn idle_unsubscribed_thread_switches_provider_without_losing_history() -> Result<()> {
+    let server = create_mock_responses_server_repeating_assistant("Done").await;
+    let codex_home = TempDir::new()?;
+    let rollout = setup_rollout_fixture(codex_home.path(), &server.uri()).await?;
+    let config_path = codex_home.path().join("config.toml");
+    let mut config = std::fs::read_to_string(&config_path)?;
+    config.push_str(&format!(
+        r#"
+[model_providers.public-test]
+name = "Public test"
+base_url = "{}/public/v1"
+model_catalog_format = "openai"
+experimental_bearer_token = "public-test-key"
+"#,
+        server.uri()
+    ));
+    std::fs::write(config_path, config)?;
+    Mock::given(method("GET"))
+        .and(path("/public/v1/models"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(json!({"data":[{"id":"public-model"}]})),
+        )
+        .mount(&server)
+        .await;
+    let mut mcp = TestAppServer::builder()
+        .with_codex_home(codex_home.path())
+        .build_initialized()
+        .await?;
+    let first = mcp
+        .send_thread_resume_request(ThreadResumeParams {
+            thread_id: rollout.conversation_id.clone(),
+            ..Default::default()
+        })
+        .await?;
+    let before: ThreadResumeResponse =
+        timeout(DEFAULT_READ_TIMEOUT, mcp.read_response(first)).await??;
+    assert!(!before.thread.turns.is_empty());
+    let unsubscribe = mcp
+        .send_thread_unsubscribe_request(ThreadUnsubscribeParams {
+            thread_id: rollout.conversation_id.clone(),
+        })
+        .await?;
+    timeout(
+        DEFAULT_READ_TIMEOUT,
+        mcp.read_stream_until_response_message(RequestId::Integer(unsubscribe)),
+    )
+    .await??;
+    let switch = mcp
+        .send_thread_resume_request(ThreadResumeParams {
+            thread_id: rollout.conversation_id.clone(),
+            model_provider: Some("public-test".into()),
+            model: Some("public-model".into()),
+            ..Default::default()
+        })
+        .await?;
+    let after: ThreadResumeResponse =
+        timeout(DEFAULT_READ_TIMEOUT, mcp.read_response(switch)).await??;
+    assert_eq!(after.thread.id, before.thread.id);
+    assert_eq!(after.model_provider, "public-test");
+    assert_eq!(after.model, "public-model");
+    assert_eq!(after.thread.turns, before.thread.turns);
+    Ok(())
+}

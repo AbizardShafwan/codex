@@ -52,6 +52,11 @@ class PackageInputs:
 
 
 PACKAGE_VARIANTS: dict[str, PackageVariant] = {
+    "memyr": PackageVariant(
+        name="memyr",
+        cargo_bin="memyr",
+        executable_stem="memyr",
+    ),
     "codex": PackageVariant(
         name="codex",
         cargo_bin="codex",

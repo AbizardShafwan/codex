@@ -32,6 +32,7 @@ use codex_tools::ToolExposure;
 use codex_tools::default_namespace_description;
 use http::HeaderMap;
 use http::HeaderValue;
+use std::sync::Arc;
 use url::Url;
 
 use crate::history::recent_input;
@@ -49,6 +50,7 @@ pub(crate) struct WebSearchTool {
     pub(crate) provider: SharedModelProvider,
     pub(crate) settings: SearchSettings,
     pub(crate) originator: Option<String>,
+    pub(crate) public_state: Arc<crate::public::PublicWebState>,
 }
 
 impl<'call> ToolExecutor<ToolCall<'call>> for WebSearchTool {
@@ -58,7 +60,13 @@ impl<'call> ToolExecutor<ToolCall<'call>> for WebSearchTool {
 
     fn spec(&self) -> ToolSpec {
         // parse schema without compaction that removes field metadata/descriptions to match hosted tool definition
-        let parameters = match parse_tool_input_schema_without_compaction(&commands_schema()) {
+        let native = self.provider.info().has_native_web_tools();
+        let schema = if native {
+            crate::public::schema()
+        } else {
+            commands_schema()
+        };
+        let parameters = match parse_tool_input_schema_without_compaction(&schema) {
             Ok(parameters) => parameters,
             Err(err) => panic!("search command schema should parse: {err}"),
         };
@@ -68,7 +76,12 @@ impl<'call> ToolExecutor<ToolCall<'call>> for WebSearchTool {
             description: default_namespace_description(WEB_NAMESPACE),
             tools: vec![ResponsesApiNamespaceTool::Function(ResponsesApiTool {
                 name: RUN_TOOL_NAME.to_string(),
-                description: WEB_RUN_DESCRIPTION.to_string(),
+                description: if native {
+                    crate::public::DESCRIPTION
+                } else {
+                    WEB_RUN_DESCRIPTION
+                }
+                .to_string(),
                 strict: false,
                 parameters,
                 output_schema: None,
@@ -100,38 +113,6 @@ impl WebSearchTool {
     ) -> Result<Box<dyn ToolOutput>, FunctionCallError> {
         let commands = parse_commands(&call)?;
         let command_action = command_action(&commands);
-        let provider = self
-            .provider
-            .api_provider()
-            .await
-            .map_err(|err| FunctionCallError::Fatal(err.to_string()))?;
-        let auth = self
-            .provider
-            .api_auth()
-            .await
-            .map_err(|err| FunctionCallError::Fatal(err.to_string()))?;
-        let transport = create_transport_for_routes_async(
-            self.http_client_factory.clone(),
-            ClientRouteClass::Api,
-        )
-        .await
-        .map_err(|err| FunctionCallError::Fatal(err.to_string()))?;
-        let client = SearchClient::new(transport, provider, auth);
-        let request = SearchRequest {
-            id: self.session_id.clone(),
-            model: call.model.clone(),
-            reasoning: None,
-            input: recent_input(call.conversation_history.items()),
-            commands: Some(commands),
-            settings: Some(self.settings.clone()),
-            max_output_tokens: Some(
-                u64::try_from(call.truncation_policy.token_budget()).unwrap_or(u64::MAX),
-            ),
-        };
-        let extra_headers = search_request_headers(
-            self.originator.as_deref(),
-            call.codex_turn_metadata.as_deref(),
-        );
         call.turn_item_emitter
             .emit_started(extension_turn_item(
                 WebSearchItem {
@@ -145,12 +126,22 @@ impl WebSearchTool {
                 }),
             ))
             .await;
-        let response = client
-            .search(&request, extra_headers)
-            .await
-            .map_err(|err| FunctionCallError::Fatal(err.to_string()))?;
-        let output = response.output;
-        let results = response.results;
+        let response = if self.provider.info().has_native_web_tools() {
+            self.public_state
+                .run(
+                    call.function_arguments()?,
+                    &self.provider,
+                    &self.http_client_factory,
+                    &self.settings,
+                )
+                .await
+        } else {
+            self.codex_search(&call, commands).await
+        };
+        let (output, results, error) = match response {
+            Ok(response) => (response.output, response.results, None),
+            Err(error) => (String::new(), None, Some(error)),
+        };
         if let Some(results) = results.as_ref()
             && let Some(metrics) = codex_otel::global()
             && let Ok(payload) = serde_json::to_vec(results)
@@ -187,8 +178,53 @@ impl WebSearchTool {
                 }),
             ))
             .await;
-
+        if let Some(error) = error {
+            return Err(error);
+        }
         Ok(Box::new(SearchOutput::new(output)))
+    }
+
+    async fn codex_search(
+        &self,
+        call: &ToolCall<'_>,
+        commands: SearchCommands,
+    ) -> Result<codex_api::SearchResponse, FunctionCallError> {
+        let provider = self
+            .provider
+            .api_provider()
+            .await
+            .map_err(|err| FunctionCallError::Fatal(err.to_string()))?;
+        let auth = self
+            .provider
+            .api_auth()
+            .await
+            .map_err(|err| FunctionCallError::Fatal(err.to_string()))?;
+        let transport = create_transport_for_routes_async(
+            self.http_client_factory.clone(),
+            ClientRouteClass::Api,
+        )
+        .await
+        .map_err(|err| FunctionCallError::Fatal(err.to_string()))?;
+        let client = SearchClient::new(transport, provider, auth);
+        let request = SearchRequest {
+            id: self.session_id.clone(),
+            model: call.model.clone(),
+            reasoning: None,
+            input: recent_input(call.conversation_history.items()),
+            commands: Some(commands),
+            settings: Some(self.settings.clone()),
+            max_output_tokens: Some(
+                u64::try_from(call.truncation_policy.token_budget()).unwrap_or(u64::MAX),
+            ),
+        };
+        let extra_headers = search_request_headers(
+            self.originator.as_deref(),
+            call.codex_turn_metadata.as_deref(),
+        );
+        client
+            .search(&request, extra_headers)
+            .await
+            .map_err(|err| FunctionCallError::Fatal(err.to_string()))
     }
 }
 

@@ -12,14 +12,15 @@ python := if os_family() == "windows" { "python" } else { "python3" }
 help:
     just -l
 
-# `codex`
-alias c := codex
-codex *args:
-    cargo run --bin codex -- {args}
+# `memyr`
+alias c := memyr
+alias codex := memyr
+memyr *args:
+    cargo run --bin memyr -- {args}
 
-# `codex exec`
+# `memyr exec`
 exec *args:
-    cargo run --bin codex -- exec {args}
+    cargo run --bin memyr -- exec {args}
 
 # Start `codex exec-server` and run codex-tui.
 [no-cd]
@@ -44,7 +45,7 @@ assemble-codex-package *args:
 # Build the CLI and run the app-server test client
 app-server-test-client *args:
     cargo build -p codex-cli
-    cargo run -p codex-app-server-test-client -- --codex-bin ./target/debug/codex {args}
+    cargo run -p codex-app-server-test-client -- --codex-bin ./target/debug/memyr {args}
 
 # Format the justfile, Rust, Bazel/Starlark, Python SDK code, and Python scripts.
 fmt:

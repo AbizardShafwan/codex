@@ -690,7 +690,7 @@ fn hosted_model_tool_specs(
     registered_extension_tool_names: &[ToolName],
 ) -> Vec<ToolSpec> {
     // Responses Lite accepts schemas for client-executed tools, not hosted Responses tools.
-    if model_info.use_responses_lite {
+    if model_info.use_responses_lite || turn_context.provider.info().has_native_web_tools() {
         return Vec::new();
     }
 
@@ -1199,7 +1199,8 @@ fn add_core_tool_sources(context: &CoreToolPlanContext<'_>, registry: &mut ToolR
 
 fn standalone_web_search_enabled(turn_context: &TurnContext, model_info: &ModelInfo) -> bool {
     turn_context.provider.capabilities().web_search
-        && (model_info.use_responses_lite
+        && (turn_context.provider.info().has_native_web_tools()
+            || model_info.use_responses_lite
             || turn_context
                 .config
                 .features

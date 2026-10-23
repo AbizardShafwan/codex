@@ -4,6 +4,10 @@
 
 export type ModelListParams = {
 /**
+ * Select a configured provider without changing the active thread or saved defaults.
+ */
+modelProvider?: string | null,
+/**
  * Opaque pagination cursor returned by a previous call.
  */
 cursor?: string | null,

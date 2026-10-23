@@ -1,0 +1,107 @@
+Prompt/context comparison — 2026-10-23
+
+Historical comparison: the fork figures below predate the latest policy edit.
+See policy-revision-estimate.json for the revised policy and projected totals.
+The pinned Pi and OpenCode measurements below are unchanged.
+
+Scope and method
+- Pi: earendil-works/pi, commit 936e5f40aede9327b9142b63506ed2b68bc6b4ac (main).
+- OpenCode: anomalyco/opencode, commit 8c5b202815d4ff35a0e8bac7e99fb26de92f3746 (dev).
+- These are pinned upstream source snapshots, not the locally installed CLI versions.
+- Approximate tokens = UTF-8 bytes / 4, consistently with the earlier fork audit.
+- This is a size heuristic, NOT a tokenizer count, provider usage reading, or invoice.
+- Message framing, provider-side additions, tokenization differences, and history are excluded.
+- Pi and OpenCode prompts were rendered offline from their source generators.
+- The fork numbers come from the earlier real executable -> local mock capture.
+- No inference or paid search ran. No runtime source or user configuration was changed.
+
+Instruction-text measurements
+Component                                      Bytes       Estimated tokens
+Fork: rendered core engineering policy          9,290       2,322.5
+Fork: policy + Default mode + permissions
+      + captured environment                   12,117       3,029.25
+Pi: clean default rendered system prompt         2,541         635.25
+OpenCode: fallback / DeepSeek-style IDs           1,471         367.75
+OpenCode: GPT                                    3,287         821.75
+OpenCode: GPT Astra                              4,540       1,135
+OpenCode: Claude                                 1,773         443.25
+OpenCode: Kimi                                   8,701       2,175.25
+OpenCode: Trinity                                7,684       1,921
+OpenCode: Muse/Meta example                      7,857       1,964.25
+
+What those numbers include
+- Fork core policy: the rendered 9,290-byte policy, not every bundled prompt asset.
+  Mode/permissions/environment are broken out rather than silently omitted.
+- Pi: identity, four tool snippets, tool-contributed rules, documentation guidance,
+  and cwd. Documentation bodies are NOT loaded. Package path is normalized to
+  /opt/pi and cwd to /workspace. Installed path lengths change the estimate slightly.
+- OpenCode: selected base prompt rendered with shell/edit/write tool guidance.
+  Claude appends its 300-byte comments guidance to the shared base.
+  Muse replaces the model-name placeholder with "Example Meta Model".
+  This table EXCLUDES OpenCode's identity hook, environment/date, instruction
+  catalogs, other hook-added guidance, and separate tool definitions.
+- All clean upstream baselines exclude user/project instruction files, custom
+  prompts, third-party extensions, MCP servers, conversation history, and skill bodies.
+- Therefore the table compares named instruction components, not equal-feature
+  complete startup requests.
+
+Tool/context measurements
+- Fork's captured 13-tool compact JSON: 18,668 bytes (~4,667 tokens).
+- Fork's captured six-skill catalog: 3,176 bytes (~794 tokens); bodies absent.
+- Fork full captured Default-mode baseline: 33,961 bytes (~8,490 tokens).
+- Same fork baseline subtracting skill catalog: 30,785 bytes (~7,696 tokens).
+- Pi default four reconstructed function declarations: 2,841 bytes (~710 tokens).
+- Pi default prompt + those four declarations: 5,382 bytes (~1,346 tokens),
+  before skills/project/custom extension/history context.
+- Pi declarations use the upstream input-schema expressions, evaluated offline
+  with the already-installed TypeBox 1.1.38. JSON uses compact Chat Completions
+  function wrappers. Strict-mode normalization and provider-specific wrapping
+  are not included; this is NOT an intercepted provider request.
+- A complete OpenCode outbound request was NOT captured. Its system-only
+  numbers must not be compared with the fork's 8,490-token full capture.
+- OpenCode keeps core tools as direct declarations and exposes other tools
+  through Code Mode. Its inline Code Mode catalog targets 2,000 estimated
+  tokens, but headers, pinned listings/namespace overhead, direct tool schemas,
+  skills, and other context are additional. This is NOT a whole-prompt cap.
+- The previous lean-tools fork experiment saved 12,881 bytes (~3,220 tokens)
+  by disabling delegation/goals, with a corresponding feature tradeoff.
+  That experiment did not change the user's configuration.
+
+Behavioral comparison
+- The fork has an extensive engineering policy: grounding, design, validation,
+  authority, autonomy, communication, tool use, and review requirements.
+- Pi is compact and tool-oriented: minimal identity, available-tool summary,
+  specific editing/reading rules, concise response guidance, and documentation
+  pointers. The four default tools are read, bash, edit, write.
+  Built-in codemode/tool_search registration does not activate those tools by default.
+- OpenCode's selected base varies with model ID. DeepSeek IDs do not match its
+  GPT/Claude/Kimi/Trinity/Muse selectors and retain the shared fallback.
+  Claude adds guidance; the other listed selectors replace the base.
+  Provider branding alone does not choose the prompt.
+- Other-agent, compaction, title, review, and summary prompts are different
+  requests/roles; adding every source asset together would overcount a main turn.
+- Pi and OpenCode both have upfront skill metadata and load bodies when needed.
+  Their extension/plugin hooks can change prompts and tool inventories.
+  Plugin enablement does not imply every instruction/schema waits for a trigger.
+- Size alone does not establish correctness or coding quality.
+- Prefix caching can reduce some input cost/latency; it does not make retained
+  prefix text disappear from the model's context window.
+
+Sources
+Pi system construction:
+https://github.com/earendil-works/pi/blob/936e5f40aede9327b9142b63506ed2b68bc6b4ac/packages/coding-agent/src/core/system-prompt.ts
+Pi startup default tools:
+https://github.com/earendil-works/pi/blob/936e5f40aede9327b9142b63506ed2b68bc6b4ac/packages/coding-agent/src/core/settings-manager.ts
+Pi tool definitions:
+https://github.com/earendil-works/pi/tree/936e5f40aede9327b9142b63506ed2b68bc6b4ac/packages/coding-agent/src/core/tools
+OpenCode model-specific prompt selection:
+https://github.com/anomalyco/opencode/blob/8c5b202815d4ff35a0e8bac7e99fb26de92f3746/packages/core/src/plugin/optimize.ts
+OpenCode shared base:
+https://github.com/anomalyco/opencode/blob/8c5b202815d4ff35a0e8bac7e99fb26de92f3746/packages/core/src/session/runner/prompt/system.txt
+OpenCode tool guidance rendering:
+https://github.com/anomalyco/opencode/blob/8c5b202815d4ff35a0e8bac7e99fb26de92f3746/packages/core/src/session/system-prompt.ts
+OpenCode catalog budgeting:
+https://github.com/anomalyco/opencode/blob/8c5b202815d4ff35a0e8bac7e99fb26de92f3746/packages/core/src/codemode/catalog.ts
+OpenCode request assembly:
+https://github.com/anomalyco/opencode/blob/8c5b202815d4ff35a0e8bac7e99fb26de92f3746/packages/core/src/session/context.ts
+

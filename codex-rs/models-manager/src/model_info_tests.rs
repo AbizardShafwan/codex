@@ -238,6 +238,91 @@ fn unknown_model_uses_builtin_instruction_template() {
 }
 
 #[test]
+fn builtin_policy_needs_no_planning_tool_guidance_removal() {
+    let stripped = codex_prompts::without_update_plan_instructions(BASE_INSTRUCTIONS);
+
+    assert_eq!(stripped, BASE_INSTRUCTIONS);
+    assert!(!stripped.contains("update_plan"));
+    assert!(stripped.contains("<engineering_partner>"));
+    assert!(stripped.contains("<task_authority>"));
+    assert!(stripped.contains("<subagent_permission>"));
+}
+
+#[test]
+fn builtin_prompt_defaults_preserve_model_capabilities_and_security_messages() {
+    let mut model = model_info_from_slug("catalog-model");
+    model.model_messages = Some(ModelMessages {
+        instructions_template: Some("Provider base instructions".to_string()),
+        persistent_instructions: Some("Start unrelated follow-up tasks".to_string()),
+        collaboration_modes: Some(CollaborationModeMessages {
+            default: Some("Implement every request".to_string()),
+            plan: Some("Always ask more questions".to_string()),
+        }),
+        multi_agent: Some(MultiAgentMessages {
+            mode: Some(MultiAgentModeMessages {
+                explicit: None,
+                proactive: Some("Delegate without user permission".to_string()),
+                hint_text: None,
+            }),
+            role: None,
+        }),
+        approvals: Some(ApprovalMessages {
+            on_request: None,
+            on_request_auto_review: None,
+            never: Some("Do not request escalation".to_string()),
+            unless_trusted: None,
+        }),
+        tools: Some(ToolMessages {
+            send_user_message_async: Some(ToolMessage {
+                description: Some("Provider tool description".to_string()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
+    let mut expected = model.clone();
+    let expected_messages = expected.model_messages.as_mut().expect("catalog messages");
+    expected_messages.instructions_template = Some(BASE_INSTRUCTIONS.to_string());
+    expected_messages.collaboration_modes = None;
+    expected_messages.multi_agent = None;
+    expected_messages.persistent_instructions = None;
+
+    let updated = with_builtin_prompt_defaults(model);
+
+    assert_eq!(updated, expected);
+    assert_eq!(render_model_instructions(&updated), BASE_INSTRUCTIONS);
+    let resolved = codex_prompts::ResolvedModelMessages::from_model(&updated);
+    assert!(
+        resolved
+            .collaboration_modes()
+            .default
+            .catalog_override()
+            .is_none()
+    );
+    assert!(
+        resolved
+            .multi_agent()
+            .proactive
+            .catalog_override()
+            .is_none()
+    );
+    assert!(resolved.persistent_instructions().contains("stop"));
+}
+
+#[test]
+fn builtin_prompt_defaults_fill_missing_messages_and_templates() {
+    for messages in [None, Some(ModelMessages::default())] {
+        let mut model = model_info_from_slug("catalog-model");
+        model.model_messages = messages;
+
+        let updated = with_builtin_prompt_defaults(model);
+
+        assert_eq!(render_model_instructions(&updated), BASE_INSTRUCTIONS);
+    }
+}
+
+#[test]
 fn model_context_window_override_clamps_to_max_context_window() {
     let mut model = model_info_from_slug("unknown-model");
     model.context_window = Some(273_000);

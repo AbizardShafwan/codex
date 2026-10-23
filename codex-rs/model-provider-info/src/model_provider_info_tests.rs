@@ -6,6 +6,40 @@ use std::num::NonZeroU64;
 use tempfile::tempdir;
 
 #[test]
+fn cloud_api_providers_use_isolated_credentials_and_public_model_discovery() {
+    let providers = built_in_model_providers(None);
+    for (id, endpoint, env_key) in [
+        (
+            DEEPSEEK_PROVIDER_ID,
+            "https://api.deepseek.com",
+            "DEEPSEEK_API_KEY",
+        ),
+        (
+            OLLAMA_CLOUD_PROVIDER_ID,
+            "https://ollama.com/v1",
+            "OLLAMA_API_KEY",
+        ),
+    ] {
+        let provider = &providers[id];
+        assert_eq!(provider.base_url.as_deref(), Some(endpoint));
+        assert_eq!(provider.env_key.as_deref(), Some(env_key));
+        assert_eq!(provider.model_catalog_format, ModelCatalogFormat::Openai);
+        assert_eq!(provider.wire_api, WireApi::Responses);
+        assert!(!provider.requires_openai_auth);
+        assert!(!provider.supports_websockets);
+        assert!(!provider.supports_realtime());
+        let capabilities = provider.capabilities.unwrap();
+        assert_eq!(capabilities.web_search, Some(false));
+        assert_eq!(capabilities.image_generation, Some(false));
+    }
+    assert!(providers[OPENAI_PROVIDER_ID].requires_openai_auth);
+    assert_eq!(
+        providers[OPENAI_PROVIDER_ID].model_catalog_format,
+        ModelCatalogFormat::Codex
+    );
+}
+
+#[test]
 fn runtime_internal_metadata_opt_in_is_not_serialized_or_configurable() {
     let trusted = ModelProviderInfo {
         include_internal_metadata: true,
@@ -79,6 +113,7 @@ base_url = "http://localhost:11434/v1"
         name: "Ollama".into(),
         base_url: Some("http://localhost:11434/v1".into()),
         model_catalog_url: None,
+        model_catalog_format: Default::default(),
         env_key: None,
         env_key_instructions: None,
         experimental_bearer_token: None,
@@ -116,6 +151,7 @@ query_params = { api-version = "2025-04-01-preview" }
         name: "Azure".into(),
         base_url: Some("https://xxxxx.openai.azure.com/openai".into()),
         model_catalog_url: None,
+        model_catalog_format: Default::default(),
         env_key: Some("AZURE_OPENAI_API_KEY".into()),
         env_key_instructions: None,
         experimental_bearer_token: None,
@@ -157,6 +193,7 @@ supports_standalone_web_search = true
         name: "Example".into(),
         base_url: Some("https://example.com".into()),
         model_catalog_url: None,
+        model_catalog_format: Default::default(),
         env_key: Some("API_KEY".into()),
         env_key_instructions: None,
         experimental_bearer_token: None,
@@ -343,6 +380,7 @@ fn test_create_amazon_bedrock_provider() {
             name: "Amazon Bedrock".to_string(),
             base_url: None,
             model_catalog_url: None,
+            model_catalog_format: Default::default(),
             env_key: None,
             env_key_instructions: None,
             experimental_bearer_token: None,

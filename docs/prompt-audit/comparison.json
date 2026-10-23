@@ -1,0 +1,324 @@
+{
+  "minimal": {
+    "fragments": [
+      {
+        "kind": "engineering policy",
+        "role": "system",
+        "bytes": 9290,
+        "characters": 9290
+      },
+      {
+        "kind": "skills catalog",
+        "role": "system",
+        "bytes": 3176,
+        "characters": 3170
+      },
+      {
+        "kind": "permissions",
+        "role": "system",
+        "bytes": 341,
+        "characters": 341
+      },
+      {
+        "kind": "environment",
+        "role": "user",
+        "bytes": 481,
+        "characters": 481
+      }
+    ],
+    "tools": [
+      {
+        "name": "exec_command",
+        "bytes": 1564
+      },
+      {
+        "name": "write_stdin",
+        "bytes": 784
+      },
+      {
+        "name": "request_user_input",
+        "bytes": 1355
+      },
+      {
+        "name": "view_image",
+        "bytes": 371
+      },
+      {
+        "name": "multi_agent_v1.close_agent",
+        "bytes": 655
+      },
+      {
+        "name": "multi_agent_v1.resume_agent",
+        "bytes": 421
+      },
+      {
+        "name": "multi_agent_v1.send_input",
+        "bytes": 1701
+      },
+      {
+        "name": "multi_agent_v1.spawn_agent",
+        "bytes": 6040
+      },
+      {
+        "name": "multi_agent_v1.wait_agent",
+        "bytes": 843
+      },
+      {
+        "name": "get_goal",
+        "bytes": 281
+      },
+      {
+        "name": "create_goal",
+        "bytes": 760
+      },
+      {
+        "name": "update_goal",
+        "bytes": 2172
+      },
+      {
+        "name": "web.run",
+        "bytes": 1707
+      }
+    ],
+    "tool_count": 13,
+    "tool_bytes": 18668,
+    "pre_user_text_bytes": 13288,
+    "combined_bytes_excluding_transport_metadata": 31956,
+    "selected_skill_body_marker_present": false
+  },
+  "default-mode": {
+    "fragments": [
+      {
+        "kind": "engineering policy",
+        "role": "system",
+        "bytes": 9290,
+        "characters": 9290
+      },
+      {
+        "kind": "skills catalog",
+        "role": "system",
+        "bytes": 3176,
+        "characters": 3170
+      },
+      {
+        "kind": "permissions",
+        "role": "system",
+        "bytes": 341,
+        "characters": 341
+      },
+      {
+        "kind": "collaboration mode",
+        "role": "system",
+        "bytes": 2005,
+        "characters": 2005
+      },
+      {
+        "kind": "environment",
+        "role": "user",
+        "bytes": 481,
+        "characters": 481
+      }
+    ],
+    "tools": [
+      {
+        "name": "exec_command",
+        "bytes": 1564
+      },
+      {
+        "name": "write_stdin",
+        "bytes": 784
+      },
+      {
+        "name": "request_user_input",
+        "bytes": 1355
+      },
+      {
+        "name": "view_image",
+        "bytes": 371
+      },
+      {
+        "name": "multi_agent_v1.close_agent",
+        "bytes": 655
+      },
+      {
+        "name": "multi_agent_v1.resume_agent",
+        "bytes": 421
+      },
+      {
+        "name": "multi_agent_v1.send_input",
+        "bytes": 1701
+      },
+      {
+        "name": "multi_agent_v1.spawn_agent",
+        "bytes": 6040
+      },
+      {
+        "name": "multi_agent_v1.wait_agent",
+        "bytes": 843
+      },
+      {
+        "name": "get_goal",
+        "bytes": 281
+      },
+      {
+        "name": "create_goal",
+        "bytes": 760
+      },
+      {
+        "name": "update_goal",
+        "bytes": 2172
+      },
+      {
+        "name": "web.run",
+        "bytes": 1707
+      }
+    ],
+    "tool_count": 13,
+    "tool_bytes": 18668,
+    "pre_user_text_bytes": 15293,
+    "combined_bytes_excluding_transport_metadata": 33961,
+    "selected_skill_body_marker_present": false
+  },
+  "with-100-skills": {
+    "fragments": [
+      {
+        "kind": "engineering policy",
+        "role": "system",
+        "bytes": 9290,
+        "characters": 9290
+      },
+      {
+        "kind": "skills catalog",
+        "role": "system",
+        "bytes": 8494,
+        "characters": 8494
+      },
+      {
+        "kind": "permissions",
+        "role": "system",
+        "bytes": 341,
+        "characters": 341
+      },
+      {
+        "kind": "environment",
+        "role": "user",
+        "bytes": 481,
+        "characters": 481
+      }
+    ],
+    "tools": [
+      {
+        "name": "exec_command",
+        "bytes": 1564
+      },
+      {
+        "name": "write_stdin",
+        "bytes": 784
+      },
+      {
+        "name": "request_user_input",
+        "bytes": 1355
+      },
+      {
+        "name": "view_image",
+        "bytes": 371
+      },
+      {
+        "name": "multi_agent_v1.close_agent",
+        "bytes": 655
+      },
+      {
+        "name": "multi_agent_v1.resume_agent",
+        "bytes": 421
+      },
+      {
+        "name": "multi_agent_v1.send_input",
+        "bytes": 1701
+      },
+      {
+        "name": "multi_agent_v1.spawn_agent",
+        "bytes": 6040
+      },
+      {
+        "name": "multi_agent_v1.wait_agent",
+        "bytes": 843
+      },
+      {
+        "name": "get_goal",
+        "bytes": 281
+      },
+      {
+        "name": "create_goal",
+        "bytes": 760
+      },
+      {
+        "name": "update_goal",
+        "bytes": 2172
+      },
+      {
+        "name": "web.run",
+        "bytes": 1707
+      }
+    ],
+    "tool_count": 13,
+    "tool_bytes": 18668,
+    "pre_user_text_bytes": 18606,
+    "combined_bytes_excluding_transport_metadata": 37274,
+    "selected_skill_body_marker_present": false
+  },
+  "lean-tools": {
+    "fragments": [
+      {
+        "kind": "engineering policy",
+        "role": "system",
+        "bytes": 9290,
+        "characters": 9290
+      },
+      {
+        "kind": "skills catalog",
+        "role": "system",
+        "bytes": 3176,
+        "characters": 3170
+      },
+      {
+        "kind": "permissions",
+        "role": "system",
+        "bytes": 341,
+        "characters": 341
+      },
+      {
+        "kind": "environment",
+        "role": "user",
+        "bytes": 481,
+        "characters": 481
+      }
+    ],
+    "tools": [
+      {
+        "name": "exec_command",
+        "bytes": 1564
+      },
+      {
+        "name": "write_stdin",
+        "bytes": 784
+      },
+      {
+        "name": "request_user_input",
+        "bytes": 1355
+      },
+      {
+        "name": "view_image",
+        "bytes": 371
+      },
+      {
+        "name": "web.run",
+        "bytes": 1707
+      }
+    ],
+    "tool_count": 5,
+    "tool_bytes": 5787,
+    "pre_user_text_bytes": 13288,
+    "combined_bytes_excluding_transport_metadata": 19075,
+    "selected_skill_body_marker_present": false
+  }
+}

@@ -113,12 +113,12 @@ fn assert_request_base(request: &Request, base: &str) {
     );
 }
 
-#[test_case(true, None; "managed incremental instructions")]
+#[test_case(true, None; "built-in incremental instructions")]
 #[test_case(false, None; "flag disabled")]
 #[test_case(true, Some("user-supplied instructions"); "custom instructions")]
 #[test_case(true, Some(""); "empty custom instructions")]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn catalog_and_model_changes_preserve_the_window_base(
+async fn provider_catalog_changes_preserve_engineering_policy_across_compaction(
     incremental_tools: bool,
     custom_instructions: Option<&'static str>,
 ) -> Result<()> {
@@ -132,6 +132,7 @@ async fn catalog_and_model_changes_preserve_the_window_base(
         .with_model(MODEL)
         .with_config(move |config| {
             config.base_instructions = custom_instructions.map(str::to_string);
+            config.update_plan_enabled = true;
             if incremental_tools {
                 config
                     .features
@@ -146,64 +147,40 @@ async fn catalog_and_model_changes_preserve_the_window_base(
         })
         .build_with_auto_env(&server)
         .await?;
+    let expected_base =
+        custom_instructions.unwrap_or(codex_models_manager::model_info::BASE_INSTRUCTIONS);
     let first_request = send_turn(&test, &server, "first turn").await?;
+    assert_request_base(&first_request, expected_base);
     assert!(model_updates(&first_request).is_empty());
 
-    refresh_catalog(&test, &server, MODEL, UPDATED).await;
-    let updated_request = send_turn(&test, &server, "use refreshed instructions").await?;
-    let mut updates = Vec::new();
-    if incremental_tools && custom_instructions.is_none() {
-        updates.push(format!("<model_instructions>\nThe following instructions replace the previous base instructions:\n\n{UPDATED}\n</model_instructions>"));
-    }
-    assert_eq!(model_updates(&updated_request), updates);
-    assert_eq!(
-        updated_request.has_content_kinds(&["model.instructions"]),
-        incremental_tools && custom_instructions.is_none()
-    );
-    assert!(updated_request.input().starts_with(&first_request.input()));
-    let unchanged_request = send_turn(&test, &server, "keep refreshed instructions").await?;
-    assert_eq!(model_updates(&unchanged_request), updates);
-
-    refresh_catalog(&test, &server, MODEL, "").await;
-    let cleared_request = send_turn(&test, &server, "clear managed instructions").await?;
-    if incremental_tools && custom_instructions.is_none() {
-        updates.push("<model_instructions>\nThe previous base instructions no longer apply. No replacement base instructions are active.\n</model_instructions>".to_string());
-    }
-    assert_eq!(model_updates(&cleared_request), updates);
-
-    for request in [
-        first_request,
-        updated_request,
-        unchanged_request,
-        cleared_request,
-    ] {
-        assert_request_base(&request, custom_instructions.unwrap_or(ORIGINAL));
+    for instructions in [UPDATED, ""] {
+        refresh_catalog(&test, &server, MODEL, instructions).await;
+        let request = send_turn(&test, &server, "continue after catalog refresh").await?;
+        assert_request_base(&request, expected_base);
+        assert!(model_updates(&request).is_empty());
+        assert!(!request.has_content_kinds(&["model.instructions"]));
+        assert!(request.input().starts_with(&first_request.input()));
+        assert!(!request.body_contains_text(ORIGINAL));
+        assert!(!request.body_contains_text(UPDATED));
     }
 
     compact(&test, &server).await?;
-    let compacted_request = send_turn(&test, &server, "keep cleared instructions").await?;
-    if !incremental_tools {
-        assert_request_base(&compacted_request, ORIGINAL);
-        assert!(model_updates(&compacted_request).is_empty());
-        return Ok(());
-    }
-    assert_request_base(&compacted_request, custom_instructions.unwrap_or_default());
+    let compacted_request = send_turn(&test, &server, "continue after compaction").await?;
+    assert_request_base(&compacted_request, expected_base);
     assert!(model_updates(&compacted_request).is_empty());
-    assert!(!compacted_request.body_contains_text(ORIGINAL));
-    assert!(!compacted_request.body_contains_text(UPDATED));
 
     refresh_catalog(&test, &server, SWITCHED_MODEL, SWITCHED).await;
     let switched_request = switch_model(&test, &server, SWITCHED_MODEL).await?;
-    let updates = vec![match custom_instructions {
-        None => format!(
-            "<model_instructions>\nThe current model is {SWITCHED_MODEL}.\nThe following instructions replace the previous base instructions:\n\n{SWITCHED}\n</model_instructions>"
-        ),
-        Some(_) => format!(
+    assert_request_base(&switched_request, expected_base);
+    let expected_updates = if incremental_tools {
+        vec![format!(
             "<model_instructions>\nThe current model is {SWITCHED_MODEL}.\n</model_instructions>"
-        ),
-    }];
-    assert_eq!(model_updates(&switched_request), updates);
-    assert_request_base(&switched_request, custom_instructions.unwrap_or_default());
+        )]
+    } else {
+        Vec::new()
+    };
+    assert_eq!(model_updates(&switched_request), expected_updates);
+    assert!(!switched_request.body_contains_text(SWITCHED));
 
     Ok(())
 }

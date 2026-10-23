@@ -61,6 +61,37 @@ pub enum ProviderAccount {
     },
 }
 
+/// Provider-native account data, separate from ChatGPT subscription quotas.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ProviderAccountStatus {
+    pub balances: Vec<ProviderBalance>,
+    pub limits: Vec<ProviderUsageWindow>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ProviderBalance {
+    pub label: String,
+    pub currency: String,
+    /// Decimal amount as reported by the provider, without floating-point arithmetic.
+    pub amount: String,
+    #[ts(type = "number | null")]
+    pub resets_at: Option<i64>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ProviderUsageWindow {
+    pub label: String,
+    pub remaining_percent: f64,
+    #[ts(type = "number | null")]
+    pub resets_at: Option<i64>,
+}
+
 impl PlanType {
     pub fn is_team_like(self) -> bool {
         matches!(

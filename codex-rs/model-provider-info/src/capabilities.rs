@@ -11,6 +11,12 @@ use serde::Serialize;
 #[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq, JsonSchema)]
 #[schemars(deny_unknown_fields)]
 pub struct ModelProviderCapabilities {
+    /// Whether the provider supports the realtime conversation protocol.
+    pub realtime: Option<bool>,
+    /// Whether the provider accepts the hosted image-generation tool.
+    pub image_generation: Option<bool>,
+    /// Whether the provider accepts the hosted Responses web-search tool.
+    pub web_search: Option<bool>,
     /// Whether hosted web search may access the live web.
     pub external_web_access: Option<bool>,
     /// Remote context-compaction protocol; omission preserves provider defaults.

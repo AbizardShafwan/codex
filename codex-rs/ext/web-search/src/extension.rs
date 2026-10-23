@@ -24,6 +24,7 @@ use codex_model_provider_info::ModelProviderInfo;
 use codex_protocol::config_types::WebSearchContextSize;
 use codex_protocol::config_types::WebSearchMode;
 
+use crate::public::PublicWebState;
 use crate::tool::WebSearchTool;
 
 #[derive(Clone)]
@@ -37,6 +38,7 @@ struct WebSearchExtensionConfig {
     http_client_factory: HttpClientFactory,
     provider: ModelProviderInfo,
     settings: SearchSettings,
+    public_state: Arc<PublicWebState>,
 }
 
 impl From<&Config> for WebSearchExtensionConfig {
@@ -44,14 +46,27 @@ impl From<&Config> for WebSearchExtensionConfig {
         let web_search_mode = config.web_search_mode.value();
         Self {
             // Core selects this executor per turn using the feature flag or model metadata.
-            available: (config.model_provider.is_openai()
-                || config.model_provider.uses_openai_actor_authorization()
-                || config.model_provider.supports_standalone_web_search)
-                && web_search_mode != WebSearchMode::Disabled,
+            available: web_search_available(&config.model_provider, web_search_mode),
             http_client_factory: config.http_client_factory(),
             provider: config.model_provider.clone(),
             settings: search_settings(config, web_search_mode),
+            public_state: Arc::new(PublicWebState::default()),
         }
+    }
+}
+
+fn web_search_available(provider: &ModelProviderInfo, mode: WebSearchMode) -> bool {
+    if provider.has_native_web_tools() {
+        // Native APIs have no cache-only/indexed-only mode. Never silently go live.
+        let capabilities = provider.capabilities.unwrap_or_default();
+        mode == WebSearchMode::Live
+            && capabilities.web_search != Some(false)
+            && capabilities.external_web_access != Some(false)
+    } else {
+        (provider.is_openai()
+            || provider.uses_openai_actor_authorization()
+            || provider.supports_standalone_web_search)
+            && mode != WebSearchMode::Disabled
     }
 }
 
@@ -115,7 +130,13 @@ impl ConfigContributor<Config> for WebSearchExtension {
         _previous_config: &Config,
         new_config: &Config,
     ) {
-        thread_store.insert(WebSearchExtensionConfig::from(new_config));
+        let mut config = WebSearchExtensionConfig::from(new_config);
+        if let Some(previous) = thread_store.get::<WebSearchExtensionConfig>()
+            && previous.provider == config.provider
+        {
+            config.public_state = previous.public_state.clone();
+        }
+        thread_store.insert(config);
     }
 }
 
@@ -145,6 +166,7 @@ impl ToolContributor for WebSearchExtension {
             originator: thread_store
                 .get::<ThreadOriginator>()
                 .map(|originator| originator.0.clone()),
+            public_state: config.public_state.clone(),
         })]
     }
 }
@@ -166,12 +188,45 @@ mod tests {
     use codex_login::CodexAuth;
     use codex_model_provider_info::ModelProviderInfo;
     use pretty_assertions::assert_eq;
+    use std::sync::Arc;
 
     use super::AuthManager;
     use super::Config;
     use super::WebSearchExtensionConfig;
     use super::external_web_access_for_mode;
     use super::install;
+
+    #[test]
+    fn native_web_availability_requires_live_mode_and_respects_capability_opt_outs() {
+        for name in ["DeepSeek", "Ollama Cloud"] {
+            let mut provider = ModelProviderInfo {
+                name: name.into(),
+                model_catalog_format: codex_model_provider_info::ModelCatalogFormat::Openai,
+                ..Default::default()
+            };
+            for mode in [
+                WebSearchMode::Disabled,
+                WebSearchMode::Cached,
+                WebSearchMode::Indexed,
+                WebSearchMode::Live,
+            ] {
+                assert_eq!(
+                    super::web_search_available(&provider, mode),
+                    mode == WebSearchMode::Live
+                );
+            }
+            provider.capabilities = Some(codex_model_provider_info::ModelProviderCapabilities {
+                external_web_access: Some(false),
+                ..Default::default()
+            });
+            assert!(!super::web_search_available(&provider, WebSearchMode::Live));
+            provider.capabilities = Some(codex_model_provider_info::ModelProviderCapabilities {
+                web_search: Some(false),
+                ..Default::default()
+            });
+            assert!(!super::web_search_available(&provider, WebSearchMode::Live));
+        }
+    }
     use crate::tool::RUN_TOOL_NAME;
     use crate::tool::WEB_NAMESPACE;
     use codex_api::ExternalWebAccess;
@@ -212,6 +267,7 @@ mod tests {
             http_client_factory: HttpClientFactory::new(OutboundProxyPolicy::ReqwestDefault),
             provider: ModelProviderInfo::create_openai_provider(/*base_url*/ None),
             settings: Default::default(),
+            public_state: Arc::new(crate::public::PublicWebState::default()),
         });
 
         let tool_names = registry

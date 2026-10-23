@@ -12,6 +12,7 @@ from openai_codex.errors import CodexError
 from openai_codex.generated.notification_registry import notification_turn_id
 from openai_codex.generated.v2_all import (
     AbsolutePathBuf,
+    AccountLogoutRequest,
     AccountRateLimitsUpdatedNotification,
     AccountUpdatedNotification,
     AgentMessageDeltaNotification,
@@ -20,7 +21,15 @@ from openai_codex.generated.v2_all import (
     AuthRecoveryNotification,
     CommandGuardianApprovalReviewAction,
     GetAccountResponse,
+    GetProviderAccountStatusParams,
+    LoginAccountParams,
+    LoginAccountResponse,
+    LogoutAccountParams,
+    ModelListParams,
     PlanType,
+    ProviderAccountStatus,
+    ProviderApiKeyLoginAccountParams,
+    ProviderApiKeyLoginAccountResponse,
     ReasoningEffort,
     ReasoningEffortOption,
     ThreadForkParams,
@@ -37,6 +46,69 @@ from openai_codex.models import InitializeResponse, JsonObject, Notification, Un
 from openai_codex.types import ThreadSource
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_provider_account_status_preserves_currency_precision_and_reset_times() -> None:
+    params = GetProviderAccountStatusParams(model_provider="ollama-cloud")
+    assert params.model_dump(by_alias=True) == {"modelProvider": "ollama-cloud"}
+    status = ProviderAccountStatus.model_validate(
+        {
+            "balances": [
+                {"label": "Balance", "currency": "USD", "amount": "110.000001", "resetsAt": None}
+            ],
+            "limits": [{"label": "5h limit", "remainingPercent": 75, "resetsAt": 1790838000}],
+        }
+    )
+    assert status.balances[0].amount == "110.000001"
+    assert status.balances[0].currency == "USD"
+    assert status.limits[0].resets_at == 1790838000
+
+
+@pytest.mark.parametrize("provider", ["deepseek", "ollama-cloud"])
+def test_provider_login_uses_typed_wire_contract(monkeypatch, provider) -> None:
+    client = CodexClient()
+    requests = []
+
+    def request(method, params, *, response_model):
+        requests.append((method, params))
+        return response_model.model_validate({"type": "providerApiKey", "providerId": provider})
+
+    monkeypatch.setattr(client, "request", request)
+    response = client.account_login_start(
+        LoginAccountParams(
+            root=ProviderApiKeyLoginAccountParams(
+                type="providerApiKey", provider_id=provider, api_key="test-provider-key"
+            )
+        )
+    )
+
+    assert requests == [
+        (
+            "account/login/start",
+            {"type": "providerApiKey", "providerId": provider, "apiKey": "test-provider-key"},
+        )
+    ]
+    assert isinstance(response, LoginAccountResponse)
+    assert isinstance(response.root, ProviderApiKeyLoginAccountResponse)
+    assert response.root.provider_id == provider
+    assert ModelListParams(model_provider=provider).model_dump(
+        by_alias=True, exclude_none=True
+    ) == {"modelProvider": provider}
+    assert LogoutAccountParams(model_provider=provider).model_dump(
+        by_alias=True, exclude_none=True
+    ) == {"modelProvider": provider}
+
+
+@pytest.mark.parametrize("params", [{}, {"params": None}])
+def test_provider_logout_contract_accepts_legacy_omission_and_null(params) -> None:
+    request = AccountLogoutRequest.model_validate({"id": 1, "method": "account/logout", **params})
+    assert request.params is None
+
+
+def test_provider_logout_contract_preserves_selected_provider() -> None:
+    wire = {"id": 1, "method": "account/logout", "params": {"modelProvider": "deepseek"}}
+    request = AccountLogoutRequest.model_validate(wire)
+    assert request.model_dump(by_alias=True, mode="json") == wire
 
 
 @pytest.mark.parametrize(

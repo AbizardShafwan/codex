@@ -1,4 +1,6 @@
+mod account_status;
 mod amazon_bedrock;
+mod api_key_store;
 mod auth;
 mod bearer_auth_provider;
 mod capabilities;
@@ -6,6 +8,7 @@ mod combined_auth;
 mod models_endpoint;
 mod models_identity;
 mod provider;
+mod public_model_catalog;
 mod shared_state;
 pub mod test_support;
 mod workspace_routing;
@@ -14,9 +17,11 @@ pub use workspace_routing::ResolvedResponsesProvider;
 pub use workspace_routing::ResponsesConnectionKey;
 pub use workspace_routing::WorkspaceRoutingContext;
 
+pub use account_status::read_provider_account_status;
 pub use amazon_bedrock::is_amazon_bedrock_gov_cloud_region;
 pub use amazon_bedrock::is_supported_amazon_bedrock_region;
 pub use amazon_bedrock::resolve_amazon_bedrock_region;
+pub use api_key_store::ProviderApiKeyStore;
 pub use auth::AgentIdentitySessionFallback;
 pub use auth::ProviderAuthScope;
 pub use auth::ResolvedProviderAuth;

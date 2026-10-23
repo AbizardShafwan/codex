@@ -24,6 +24,7 @@ use codex_login::collect_auth_env_telemetry;
 use codex_login::default_client::ClientRedirectPolicy;
 use codex_login::default_client::create_client_for_route_async;
 use codex_model_provider_info::CHATGPT_CODEX_BASE_URL;
+use codex_model_provider_info::ModelCatalogFormat;
 use codex_model_provider_info::ModelProviderInfo;
 use codex_models_manager::manager::ModelsEndpointClient;
 use codex_models_manager::manager::ModelsEndpointFuture;
@@ -31,9 +32,11 @@ use codex_models_manager::manager::ModelsEndpointResponse;
 use codex_otel::TelemetryAuthMode;
 use codex_protocol::error::CodexErr;
 use codex_protocol::error::Result as CoreResult;
+use codex_protocol::openai_models::ModelInfo;
 use codex_response_debug_context::extract_response_debug_context;
 use codex_response_debug_context::telemetry_transport_error_message;
 use http::HeaderMap;
+use tokio::task::JoinSet;
 use tokio::time::timeout;
 
 use crate::auth::ResolvedProviderAuth;
@@ -45,6 +48,59 @@ const MODELS_REFRESH_TIMEOUT: Duration = Duration::from_secs(5);
 const MODELS_ENDPOINT: &str = "/models";
 // Bound downloads from explicitly configured catalogs before decoding or caching them.
 const MAX_MODEL_CATALOG_BYTES: usize = 1024 * 1024;
+const MODEL_DETAILS_CONCURRENCY: usize = 4;
+
+fn ollama_model_details_url(provider: &ModelProviderInfo, catalog_url: &str) -> Option<String> {
+    if provider.name != "Ollama Cloud" || provider.model_catalog_url.is_some() {
+        return None;
+    }
+    let mut url = url::Url::parse(catalog_url).ok()?;
+    let prefix = url.path().strip_suffix("/v1/models")?;
+    let path = format!("{prefix}/api/show");
+    url.set_path(&path);
+    Some(url.into())
+}
+
+/// Enrich cached public IDs without blocking discovery indefinitely on optional metadata.
+/// Dropping the bounded task set cancels unfinished requests at the overall deadline.
+async fn enrich_ollama_thinking(
+    models: &mut [ModelInfo],
+    client: Arc<ModelsClient<ReqwestTransport>>,
+    details_url: String,
+) {
+    let mut tasks = JoinSet::new();
+    let mut next = 0;
+    let enrichment = async {
+        loop {
+            while next < models.len() && tasks.len() < MODEL_DETAILS_CONCURRENCY {
+                let index = next;
+                let model = models[index].slug.clone();
+                let client = Arc::clone(&client);
+                let url = details_url.clone();
+                tasks.spawn(async move {
+                    let result = client
+                        .model_details_raw(url, model, MAX_MODEL_CATALOG_BYTES)
+                        .await;
+                    (index, result)
+                });
+                next += 1;
+            }
+            match tasks.join_next().await {
+                Some(Ok((index, Ok(body)))) => {
+                    crate::public_model_catalog::apply_ollama_thinking(&mut models[index], &body);
+                }
+                Some(_) => {
+                    // Optional metadata failures must not hide an otherwise usable model list.
+                    tracing::debug!("Ollama model thinking metadata unavailable");
+                }
+                None => break,
+            }
+        }
+    };
+    if timeout(MODELS_REFRESH_TIMEOUT, enrichment).await.is_err() {
+        tracing::debug!("Ollama model thinking metadata refresh timed out");
+    }
+}
 
 /// Provider-owned OpenAI-compatible `/models` endpoint.
 #[derive(Debug)]
@@ -61,7 +117,9 @@ impl OpenAiModelsEndpoint {
         auth_manager: Option<Arc<AuthManager>>,
         gateway_auth_manager: Option<Result<Arc<GatewayAuthManager>, String>>,
     ) -> Self {
-        let redirect_policy = if provider_info.model_catalog_url.is_some() {
+        let redirect_policy = if provider_info.model_catalog_url.is_some()
+            || provider_info.model_catalog_format == ModelCatalogFormat::Openai
+        {
             ClientRedirectPolicy::Reject
         } else {
             ClientRedirectPolicy::Default
@@ -75,6 +133,12 @@ impl OpenAiModelsEndpoint {
     }
 
     async fn auth(&self) -> Option<CodexAuth> {
+        if self.provider_info.model_catalog_format == ModelCatalogFormat::Openai
+            && !self.provider_info.requires_openai_auth
+            && !self.provider_info.has_command_auth()
+        {
+            return None;
+        }
         match self.auth_manager.as_ref() {
             Some(auth_manager) => auth_manager.auth().await,
             None => None,
@@ -93,6 +157,16 @@ impl OpenAiModelsEndpoint {
         client_version: &str,
         http_client_factory: HttpClientFactory,
     ) -> CoreResult<ModelsEndpointResponse> {
+        let mut credential_info = self.provider_info.clone();
+        crate::provider::load_saved_provider_key(
+            &mut credential_info,
+            self.auth_manager.as_deref(),
+        )
+        .map_err(|_| {
+            CodexErr::InvalidRequest(
+                "Failed to load provider credentials. Run /login to reconnect.".to_string(),
+            )
+        })?;
         let auth = self.auth().await;
         let metric_auth_mode = if self.has_provider_api_key()
             || auth.as_ref().is_some_and(CodexAuth::is_api_key_auth)
@@ -107,7 +181,7 @@ impl OpenAiModelsEndpoint {
             "codex.remote_models.fetch_update.duration_ms",
             &[("auth_mode", metric_auth_mode)],
         );
-        let identity = crate::models_identity::identity(&self.provider_info, auth.as_ref())?;
+        let identity = crate::models_identity::identity(&credential_info, auth.as_ref())?;
         let auth_mode = auth.as_ref().map(CodexAuth::auth_mode);
         let mut api_provider = self.provider_info.to_api_provider(auth_mode)?;
         if (auth.as_ref().is_some_and(CodexAuth::is_api_key_auth) || self.has_provider_api_key())
@@ -121,7 +195,7 @@ impl OpenAiModelsEndpoint {
         let resolved = compose_auth(
             &self.provider_info,
             self.gateway_auth_manager.as_ref(),
-            ResolvedProviderAuth::new(resolve_provider_auth(auth.as_ref(), &self.provider_info)?),
+            ResolvedProviderAuth::new(resolve_provider_auth(auth.as_ref(), &credential_info)?),
         )
         .await?;
         let api_auth = resolved.auth;
@@ -132,6 +206,9 @@ impl OpenAiModelsEndpoint {
                 client_version,
             )
             .map_err(map_api_error)?,
+            None if self.provider_info.model_catalog_format == ModelCatalogFormat::Openai => {
+                api_provider.build_request(http::Method::GET, "models").url
+            }
             None => ModelsClient::<ReqwestTransport>::request_url(&api_provider, client_version),
         };
         let auth_telemetry = auth_header_telemetry(api_auth.as_ref())
@@ -142,25 +219,49 @@ impl OpenAiModelsEndpoint {
             None
         };
         let request_telemetry: Arc<dyn RequestTelemetry> = Arc::new(ModelsRequestTelemetry {
-            include_response_debug: self.provider_info.model_catalog_url.is_none(),
+            include_response_debug: self.provider_info.model_catalog_url.is_none()
+                && self.provider_info.model_catalog_format != ModelCatalogFormat::Openai,
             auth_mode: auth_mode.map(|mode| TelemetryAuthMode::from(mode).to_string()),
             auth_header_attached: auth_telemetry.attached,
             auth_header_name: auth_telemetry.name,
             agent_identity_telemetry,
             auth_env: self.auth_env(),
         });
-        let (models, etag) = timeout(MODELS_REFRESH_TIMEOUT, async {
+        let (mut models, etag, details_client) = timeout(MODELS_REFRESH_TIMEOUT, async {
             let transport = self
                 .transport_builder
                 .build(http_client_factory, request_url.clone())
                 .await?;
-            let client = ModelsClient::new(transport, api_provider, api_auth)
-                .with_telemetry(Some(request_telemetry));
-            let response_body_limit_bytes = self
-                .provider_info
-                .model_catalog_url
-                .as_ref()
-                .map(|_| MAX_MODEL_CATALOG_BYTES);
+            let client = Arc::new(
+                ModelsClient::new(transport, api_provider, api_auth)
+                    .with_telemetry(Some(request_telemetry)),
+            );
+            let response_body_limit_bytes = (self.provider_info.model_catalog_url.is_some()
+                || self.provider_info.model_catalog_format == ModelCatalogFormat::Openai)
+                .then_some(MAX_MODEL_CATALOG_BYTES);
+            if self.provider_info.model_catalog_format == ModelCatalogFormat::Openai {
+                let details_url = ollama_model_details_url(&self.provider_info, &request_url);
+                let (body, etag) = client
+                    .list_models_raw(request_url, HeaderMap::new(), response_body_limit_bytes)
+                    .await
+                    .map_err(|mut error| {
+                        if let codex_api::ApiError::Transport(TransportError::Http {
+                            url,
+                            headers,
+                            body,
+                            ..
+                        }) = &mut error
+                        {
+                            *url = None;
+                            *headers = None;
+                            *body = None;
+                        }
+                        map_api_error(error)
+                    })?;
+                let models =
+                    crate::public_model_catalog::parse_public_models(&body, &self.provider_info)?;
+                return Ok((models, etag, details_url.map(|url| (client, url))));
+            }
             client
                 .list_models(request_url, HeaderMap::new(), response_body_limit_bytes)
                 .await
@@ -180,9 +281,13 @@ impl OpenAiModelsEndpoint {
                     }
                     map_api_error(error)
                 })
+                .map(|(models, etag)| (models, etag, None))
         })
         .await
         .map_err(|_| CodexErr::RequestTimeout)??;
+        if let Some((client, url)) = details_client {
+            enrich_ollama_thinking(&mut models, client, url).await;
+        }
         if self.provider_info.model_catalog_url.is_some() {
             let mut slugs = HashSet::new();
             if models
@@ -211,8 +316,13 @@ impl OpenAiModelsEndpoint {
 }
 
 impl ModelsEndpointClient for OpenAiModelsEndpoint {
+    fn requires_api_key_discovery_opt_in(&self) -> bool {
+        self.provider_info.model_catalog_format != ModelCatalogFormat::Openai
+    }
+
     fn supports_api_key_models(&self) -> bool {
-        self.provider_info.model_catalog_url.is_some()
+        self.provider_info.model_catalog_format == ModelCatalogFormat::Openai
+            || self.provider_info.model_catalog_url.is_some()
             || (self.provider_info.is_openai() && self.provider_info.base_url.is_none())
     }
 
@@ -225,8 +335,15 @@ impl ModelsEndpointClient for OpenAiModelsEndpoint {
         let auth = self
             .auth_manager
             .as_ref()
-            .and_then(|manager| manager.auth_cached());
-        crate::models_identity::identity(&self.provider_info, auth.as_ref()).ok()
+            .and_then(|manager| manager.auth_cached())
+            .filter(|_| {
+                self.provider_info.model_catalog_format != ModelCatalogFormat::Openai
+                    || self.provider_info.requires_openai_auth
+                    || self.provider_info.has_command_auth()
+            });
+        let mut info = self.provider_info.clone();
+        crate::provider::load_saved_provider_key(&mut info, self.auth_manager.as_deref()).ok()?;
+        crate::models_identity::identity(&info, auth.as_ref()).ok()
     }
 
     fn has_command_auth(&self) -> bool {
@@ -459,6 +576,230 @@ mod tests {
             *self.0.lock().unwrap() = Some(request_url);
             Box::pin(async { Err(std::io::Error::other("transport intentionally unavailable")) })
         }
+    }
+
+    #[tokio::test]
+    async fn public_catalog_uses_only_its_credential_and_no_codex_query() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .and(header("authorization", "Bearer provider-only-key"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({"data":[{"id":"other-model"}]})),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+        let endpoint = OpenAiModelsEndpoint::new(
+            ModelProviderInfo {
+                name: "Public".into(),
+                base_url: Some(format!("{}/v1", server.uri())),
+                experimental_bearer_token: Some("provider-only-key".into()),
+                model_catalog_format: ModelCatalogFormat::Openai,
+                ..Default::default()
+            },
+            Some(AuthManager::from_auth_for_testing(CodexAuth::from_api_key(
+                "unrelated-openai-key",
+            ))),
+            None,
+        );
+        assert!(endpoint.auth().await.is_none());
+        assert!(!endpoint.requires_api_key_discovery_opt_in());
+        let result = endpoint
+            .list_models(
+                "test-version",
+                HttpClientFactory::new(OutboundProxyPolicy::ReqwestDefault),
+            )
+            .await
+            .unwrap();
+        assert_eq!(result.models.len(), 1);
+        assert_eq!(result.models[0].slug, "other-model");
+        let requests = server.received_requests().await.unwrap();
+        assert!(requests[0].url.query().is_none());
+        assert!(!requests[0].headers.contains_key("chatgpt-account-id"));
+    }
+
+    #[tokio::test]
+    async fn ollama_catalog_discovers_thinking_controls_and_keeps_models_on_metadata_failure() {
+        use codex_protocol::openai_models::ReasoningEffort;
+        use wiremock::matchers::body_json;
+
+        let server = MockServer::start().await;
+        let slugs = [
+            "deepseek-v4.1-flash:1017",
+            "on-off",
+            "custom",
+            "not-thinking",
+            "unavailable",
+            "invalid",
+        ];
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"data": slugs.iter().map(|id| serde_json::json!({"id":id})).collect::<Vec<_>>()})))
+            .expect(1)
+            .mount(&server).await;
+        for (slug, thinking) in [
+            (
+                slugs[0],
+                serde_json::json!({"values":[false,"low","high","max"],"default":"high"}),
+            ),
+            (
+                slugs[1],
+                serde_json::json!({"values":[false,true],"default":true}),
+            ),
+            (
+                slugs[2],
+                serde_json::json!({"values":["balanced","thorough"],"default":"balanced"}),
+            ),
+            (
+                slugs[3],
+                serde_json::json!({"values":[false],"default":false}),
+            ),
+        ] {
+            Mock::given(method("POST"))
+                .and(path("/api/show"))
+                .and(body_json(serde_json::json!({"model":slug,"verbose":false})))
+                .respond_with(ResponseTemplate::new(200).set_body_json(
+                    serde_json::json!({"thinking":thinking,"system":"replace policy"}),
+                ))
+                .expect(1)
+                .mount(&server)
+                .await;
+        }
+        for (slug, status, body) in [(slugs[4], 404, "unavailable"), (slugs[5], 200, "not JSON")] {
+            Mock::given(method("POST"))
+                .and(path("/api/show"))
+                .and(body_json(serde_json::json!({"model":slug,"verbose":false})))
+                .respond_with(ResponseTemplate::new(status).set_body_string(body))
+                .expect(1)
+                .mount(&server)
+                .await;
+        }
+        let endpoint = OpenAiModelsEndpoint::new(
+            ModelProviderInfo {
+                name: "Ollama Cloud".into(),
+                base_url: Some(format!("{}/v1", server.uri())),
+                experimental_bearer_token: Some("provider-key".into()),
+                model_catalog_format: ModelCatalogFormat::Openai,
+                ..Default::default()
+            },
+            Some(AuthManager::from_auth_for_testing(CodexAuth::from_api_key(
+                "unrelated-openai-key",
+            ))),
+            None,
+        );
+        let result = endpoint
+            .list_models(
+                "version",
+                HttpClientFactory::new(OutboundProxyPolicy::ReqwestDefault),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            result
+                .models
+                .iter()
+                .map(|model| model.slug.as_str())
+                .collect::<Vec<_>>(),
+            slugs
+        );
+        assert_eq!(
+            result.models[0].default_reasoning_level,
+            Some(ReasoningEffort::High)
+        );
+        assert_eq!(
+            result.models[0]
+                .supported_reasoning_levels
+                .iter()
+                .map(|preset| preset.effort.clone())
+                .collect::<Vec<_>>(),
+            vec![
+                ReasoningEffort::None,
+                ReasoningEffort::Low,
+                ReasoningEffort::High,
+                ReasoningEffort::Max
+            ]
+        );
+        assert_eq!(result.models[1].supported_reasoning_levels.len(), 2);
+        assert_eq!(
+            result.models[2].default_reasoning_level,
+            Some(ReasoningEffort::Custom("balanced".into()))
+        );
+        assert_eq!(
+            result.models[3].default_reasoning_level,
+            Some(ReasoningEffort::None)
+        );
+        for model in &result.models[4..] {
+            assert!(model.supported_reasoning_levels.is_empty());
+        }
+        for request in server.received_requests().await.unwrap() {
+            assert_eq!(request.headers["authorization"], "Bearer provider-key");
+            assert!(!request.headers.contains_key("chatgpt-account-id"));
+            assert!(request.url.query().is_none());
+        }
+    }
+
+    #[tokio::test]
+    async fn ollama_metadata_rejects_redirects_and_preserves_catalog() {
+        let server = MockServer::start().await;
+        let destination = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({"data":[{"id":"model"}]})),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/api/show"))
+            .respond_with(
+                ResponseTemplate::new(302)
+                    .insert_header("location", format!("{}/api/show", destination.uri())),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+        let endpoint = OpenAiModelsEndpoint::new(
+            ModelProviderInfo {
+                name: "Ollama Cloud".into(),
+                base_url: Some(format!("{}/v1", server.uri())),
+                experimental_bearer_token: Some("provider-key".into()),
+                model_catalog_format: ModelCatalogFormat::Openai,
+                ..Default::default()
+            },
+            None,
+            None,
+        );
+        let result = endpoint
+            .list_models(
+                "version",
+                HttpClientFactory::new(OutboundProxyPolicy::ReqwestDefault),
+            )
+            .await
+            .unwrap();
+        assert_eq!(result.models.len(), 1);
+        assert!(result.models[0].supported_reasoning_levels.is_empty());
+        assert!(destination.received_requests().await.unwrap().is_empty());
+    }
+
+    #[test]
+    fn ollama_metadata_routing_keeps_origin_prefix_and_query() {
+        let mut provider = ModelProviderInfo {
+            name: "Ollama Cloud".into(),
+            ..Default::default()
+        };
+        assert_eq!(
+            ollama_model_details_url(
+                &provider,
+                "https://host.example/proxy/v1/models?deployment=one"
+            ),
+            Some("https://host.example/proxy/api/show?deployment=one".into())
+        );
+        assert!(ollama_model_details_url(&provider, "https://host.example/models").is_none());
+        provider.name = "Other provider".into();
+        assert!(ollama_model_details_url(&provider, "https://host.example/v1/models").is_none());
     }
 
     #[tokio::test]

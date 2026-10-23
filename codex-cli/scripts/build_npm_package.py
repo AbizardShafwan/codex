@@ -18,7 +18,7 @@ CODEX_SDK_ROOT = REPO_ROOT / "sdk" / "typescript"
 CODEX_NPM_NAME = "@openai/codex"
 CODEX_PACKAGE_COMPONENT = "codex-package"
 
-# `npm_name` is the local optional-dependency alias consumed by `bin/codex.js`.
+# `npm_name` is the local optional-dependency alias consumed by `bin/memyr.js`.
 # The underlying package published to npm is always `@openai/codex`.
 CODEX_PLATFORM_PACKAGES: dict[str, dict[str, str]] = {
     "codex-linux-x64": {
@@ -156,6 +156,8 @@ def main() -> int:
         stage_sources(staging_dir, version, package)
 
         vendor_src = args.vendor_src.resolve() if args.vendor_src else None
+        if package == "codex" and vendor_src is not None:
+            shutil.copytree(vendor_src, staging_dir / "vendor", dirs_exist_ok=True)
         native_components = PACKAGE_NATIVE_COMPONENTS.get(package, [])
         target_filter = PACKAGE_TARGET_FILTERS.get(package)
 
@@ -181,8 +183,8 @@ def main() -> int:
                 print(
                     f"Staged version {version} for release in {staging_dir_str}\n\n"
                     "Verify the CLI:\n"
-                    f"    node {staging_dir_str}/bin/codex.js --version\n"
-                    f"    node {staging_dir_str}/bin/codex.js --help\n\n"
+                    f"    node {staging_dir_str}/bin/memyr.js --version\n"
+                    f"    node {staging_dir_str}/bin/memyr.js --help\n\n"
                 )
             elif package == "codex-responses-api-proxy":
                 print(
@@ -236,7 +238,7 @@ def stage_sources(staging_dir: Path, version: str, package: str) -> None:
     if package == "codex":
         bin_dir = staging_dir / "bin"
         bin_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(CODEX_CLI_ROOT / "bin" / "codex.js", bin_dir / "codex.js")
+        shutil.copy2(CODEX_CLI_ROOT / "bin" / "memyr.js", bin_dir / "memyr.js")
 
         readme_src = REPO_ROOT / "README.md"
         if readme_src.exists():
@@ -297,8 +299,8 @@ def stage_sources(staging_dir: Path, version: str, package: str) -> None:
         package_json["version"] = version
 
     if package == "codex":
-        package_json["files"] = ["bin/codex.js"]
-        package_json["optionalDependencies"] = {
+        package_json["files"] = ["bin/memyr.js", "vendor"]
+        platform_dependencies = {
             CODEX_PLATFORM_PACKAGES[platform_package]["npm_name"]: (
                 f"npm:{CODEX_NPM_NAME}@"
                 f"{compute_platform_package_version(version, CODEX_PLATFORM_PACKAGES[platform_package]['npm_tag'])}"
@@ -306,6 +308,15 @@ def stage_sources(staging_dir: Path, version: str, package: str) -> None:
             for platform_package in PACKAGE_EXPANSIONS["codex"]
             if platform_package != "codex"
         }
+        if package_json.get("private"):
+            # Personal builds bundle their own native binary instead of resolving
+            # platform dependencies from the upstream public package registry.
+            package_json.pop("optionalDependencies", None)
+            vendor = CODEX_CLI_ROOT / "vendor"
+            if vendor.is_dir():
+                shutil.copytree(vendor, staging_dir / "vendor", dirs_exist_ok=True)
+        else:
+            package_json["optionalDependencies"] = platform_dependencies
 
     elif package == "codex-sdk":
         scripts = package_json.get("scripts")

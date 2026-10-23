@@ -3392,3 +3392,38 @@ async fn hosted_web_search_and_standalone_image_generation_follow_runtime_gates(
 
 #[path = "spec_plan_strict_third_party_tests.rs"]
 mod strict_third_party;
+
+#[tokio::test]
+async fn native_web_uses_extension_without_hosted_tool_or_experimental_flag() {
+    for name in ["DeepSeek", "Ollama Cloud"] {
+        for mode in [WebSearchMode::Live, WebSearchMode::Disabled] {
+            let plan = probe_with(
+                |turn| {
+                    let info = ModelProviderInfo {
+                        name: name.into(),
+                        model_catalog_format: codex_model_provider_info::ModelCatalogFormat::Openai,
+                        ..Default::default()
+                    };
+                    update_config(turn, |config| config.model_provider = info.clone());
+                    turn.provider = create_model_provider(info, turn.auth_manager.clone());
+                    set_feature(turn, Feature::StandaloneWebSearch, false);
+                    set_web_search_mode(turn, mode);
+                },
+                ToolPlanInputs {
+                    extension_tool_executors: vec![Arc::new(TestNamespaceExtensionTool {
+                        namespace: "web",
+                        tool_name: "run",
+                    })],
+                    ..Default::default()
+                },
+            )
+            .await;
+            plan.assert_visible_lacks(&["web_search"]);
+            if mode == WebSearchMode::Live {
+                plan.assert_visible_contains(&["web"]);
+            } else {
+                plan.assert_visible_lacks(&["web"]);
+            }
+        }
+    }
+}

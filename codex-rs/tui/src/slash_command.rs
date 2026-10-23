@@ -69,6 +69,7 @@ pub enum SlashCommand {
     Mcp,
     Apps,
     Plugins,
+    Login,
     Logout,
     Quit,
     Exit,
@@ -157,6 +158,7 @@ impl SlashCommand {
             SlashCommand::Apps => "manage apps",
             SlashCommand::Plugins => "browse plugins",
             SlashCommand::Logout => "log out of Codex",
+            SlashCommand::Login => "connect ChatGPT, DeepSeek, or Ollama Cloud",
             SlashCommand::Rollout => "print the rollout file path",
             SlashCommand::TestApproval => "test approval request",
         }
@@ -230,6 +232,7 @@ impl SlashCommand {
             self,
             SlashCommand::New
                 | SlashCommand::Clear
+                | SlashCommand::Login
                 | SlashCommand::Resume
                 | SlashCommand::Agents
                 | SlashCommand::MultiAgents
@@ -268,6 +271,7 @@ impl SlashCommand {
             | SlashCommand::Cd
             | SlashCommand::Clear
             | SlashCommand::Logout
+            | SlashCommand::Login
             | SlashCommand::MemoryDrop
             | SlashCommand::MemoryUpdate => false,
             SlashCommand::Diff

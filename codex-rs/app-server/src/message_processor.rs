@@ -1825,9 +1825,9 @@ impl MessageProcessor {
                     .await
                     .map(|response| Some(response.into()))
             }
-            ClientRequest::LogoutAccount { .. } => {
+            ClientRequest::LogoutAccount { params, .. } => {
                 self.account_processor
-                    .logout_account(request_id.clone())
+                    .logout_account(request_id.clone(), params)
                     .await
             }
             ClientRequest::CancelLoginAccount { params, .. } => {
@@ -1841,6 +1841,11 @@ impl MessageProcessor {
             }
             ClientRequest::GetAccountRateLimits { params, .. } => {
                 self.account_processor.get_account_rate_limits(params).await
+            }
+            ClientRequest::GetProviderAccountStatus { params, .. } => {
+                self.account_processor
+                    .get_provider_account_status(params)
+                    .await
             }
             ClientRequest::ConsumeAccountRateLimitResetCredit { params, .. } => {
                 self.account_processor

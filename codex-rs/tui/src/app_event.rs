@@ -681,6 +681,7 @@ pub(crate) enum AppEvent {
     },
 
     /// Request app-server account logout, then exit after it succeeds.
+    Login,
     Logout,
 
     /// Request to exit the application due to a fatal error.
@@ -723,6 +724,16 @@ pub(crate) enum AppEvent {
     /// Refresh account rate limits in the background.
     RefreshRateLimits {
         origin: RateLimitRefreshOrigin,
+    },
+
+    RefreshProviderAccountStatus {
+        model_provider: String,
+        handle: crate::status::StatusHistoryHandle,
+    },
+
+    ProviderAccountStatusLoaded {
+        handle: crate::status::StatusHistoryHandle,
+        result: Result<codex_protocol::account::ProviderAccountStatus, String>,
     },
 
     /// Reconcile inherited account usage with an attached task before its queued input runs.

@@ -1,0 +1,42 @@
+{
+  "profile": "with-100-skills",
+  "messages": [
+    {
+      "item": 0,
+      "role": "system",
+      "bytes": 9290,
+      "characters": 9290,
+      "estimated_tokens_bytes_div_4": 2323,
+      "skill_entries": 0
+    },
+    {
+      "item": 1,
+      "role": "system",
+      "bytes": 8836,
+      "characters": 8836,
+      "estimated_tokens_bytes_div_4": 2209,
+      "skill_entries": 100
+    },
+    {
+      "item": 2,
+      "role": "user",
+      "bytes": 481,
+      "characters": 481,
+      "estimated_tokens_bytes_div_4": 121,
+      "skill_entries": 0
+    },
+    {
+      "item": 3,
+      "role": "user",
+      "bytes": 45,
+      "characters": 45,
+      "estimated_tokens_bytes_div_4": 12,
+      "skill_entries": 0
+    }
+  ],
+  "tool_count": 13,
+  "tool_definition_bytes_compact_json": 18668,
+  "tool_definition_estimated_tokens_bytes_div_4": 4667,
+  "skill_bodies_in_initial_request": false,
+  "real_api_requests": 0
+}

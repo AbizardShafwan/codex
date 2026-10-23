@@ -160,6 +160,12 @@ async fn build_request_context(
     config: &Config,
 ) -> StageOneRequestContext {
     let model_name = config.memories.extract_model.clone().unwrap_or_else(|| {
+        if config.model_provider.model_catalog_format
+            == codex_model_provider_info::ModelCatalogFormat::Openai
+            && let Some(model) = &config.model
+        {
+            return model.clone();
+        }
         context
             .provider()
             .memory_extraction_preferred_model()

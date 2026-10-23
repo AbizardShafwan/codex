@@ -2784,6 +2784,25 @@
       },
       "type": "object"
     },
+    "ModelCatalogFormat": {
+      "description": "Format returned by the provider's model-discovery endpoint.",
+      "oneOf": [
+        {
+          "description": "Codex model descriptors, including capabilities and optional messages.",
+          "enum": [
+            "codex"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Standard OpenAI-compatible `{ \"data\": [{ \"id\": \"model-id\" }] }` response.",
+          "enum": [
+            "openai"
+          ],
+          "type": "string"
+        }
+      ]
+    },
     "ModelProviderAuthInfo": {
       "additionalProperties": false,
       "description": "Configuration for obtaining a provider bearer token from a command.",
@@ -2867,6 +2886,14 @@
           "description": "Whether hosted web search may access the live web.",
           "type": "boolean"
         },
+        "image_generation": {
+          "description": "Whether the provider accepts the hosted image-generation tool.",
+          "type": "boolean"
+        },
+        "realtime": {
+          "description": "Whether the provider supports the realtime conversation protocol.",
+          "type": "boolean"
+        },
         "remote_compaction": {
           "allOf": [
             {
@@ -2874,6 +2901,10 @@
             }
           ],
           "description": "Remote context-compaction protocol; omission preserves provider defaults."
+        },
+        "web_search": {
+          "description": "Whether the provider accepts the hosted Responses web-search tool.",
+          "type": "boolean"
         }
       },
       "type": "object"
@@ -2943,6 +2974,15 @@
           },
           "description": "Additional HTTP headers to include in requests to this provider where the (key, value) pairs are the header name and value.",
           "type": "object"
+        },
+        "model_catalog_format": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/ModelCatalogFormat"
+            }
+          ],
+          "default": "codex",
+          "description": "Shape of the model discovery response. Public API catalogs need no behavior prompts."
         },
         "model_catalog_url": {
           "description": "Optional full URL for a Codex-native model catalog. When unset, OpenAI discovery uses the Codex backend unless `base_url` overrides the inference endpoint.",

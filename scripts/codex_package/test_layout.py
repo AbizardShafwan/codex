@@ -73,7 +73,7 @@ int main(void) {
                         # Preserved prebuilt inputs must not even need a strip tool.
                         command.extend(("--strip-tool", str(root / "absent-strip")))
                     subprocess.run(command, check=True, capture_output=True)
-                    for name in ("codex", "codex-code-mode-host"):
+                    for name in ("memyr", "codex-code-mode-host"):
                         executable = package / "bin" / name
                         self.assertEqual(
                             subprocess.check_output([str(executable)]),
@@ -154,7 +154,7 @@ int main(void) {
                     self.assertEqual(hashlib.sha256(actual[name]).hexdigest(), digest)
 
     def test_macos_package_preserves_prebuilt_resource_binaries(self) -> None:
-        for variant_name in ("codex", "codex-app-server"):
+        for variant_name in ("memyr", "codex", "codex-app-server"):
             for target in ("aarch64-apple-darwin", "x86_64-apple-darwin"):
                 with self.subTest(variant=variant_name, target=target):
                     with tempfile.TemporaryDirectory() as temp_dir:

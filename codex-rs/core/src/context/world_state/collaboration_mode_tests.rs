@@ -137,7 +137,7 @@ fn empty_catalog_collaboration_message_suppresses_legacy_instructions() {
 }
 
 #[test]
-fn missing_catalog_collaboration_message_uses_legacy_instructions() {
+fn missing_catalog_collaboration_message_uses_configured_or_builtin_plan() {
     let messages = ResolvedCollaborationModeMessages {
         default: ResolvedMessage::Catalog("catalog default instructions"),
         ..ResolvedModelMessages::bundled().collaboration_modes()
@@ -149,11 +149,25 @@ fn missing_catalog_collaboration_message_uses_legacy_instructions() {
             /*update_plan_enabled*/ true,
             /*custom_model_catalog*/ false,
         );
-        assert_eq!(
-            state.instructions.as_deref(),
-            instructions.filter(|text| !text.is_empty())
-        );
+        let expected = match instructions {
+            Some("") => None,
+            Some(text) => Some(text),
+            None => Some(messages.plan.text()),
+        };
+        assert_eq!(state.instructions.as_deref(), expected);
     }
+}
+
+#[test]
+fn custom_catalog_does_not_gain_unconfigured_plan_instructions() {
+    let state = CollaborationModeState::from_collaboration_mode(
+        &collaboration_mode(ModeKind::Plan, None),
+        ResolvedModelMessages::bundled().collaboration_modes(),
+        /*update_plan_enabled*/ true,
+        /*custom_model_catalog*/ true,
+    );
+
+    assert_eq!(state.instructions, None);
 }
 
 #[test]

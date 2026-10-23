@@ -79,6 +79,8 @@ const MAX_REQUEST_MAX_RETRIES: u64 = 100;
 const OPENAI_PROVIDER_NAME: &str = "OpenAI";
 const OPENAI_ACTOR_AUTHORIZATION_HEADER: &str = "x-openai-actor-authorization";
 pub const OPENAI_PROVIDER_ID: &str = "openai";
+pub const DEEPSEEK_PROVIDER_ID: &str = "deepseek";
+pub const OLLAMA_CLOUD_PROVIDER_ID: &str = "ollama-cloud";
 pub const CHATGPT_CODEX_BASE_URL: &str = "https://chatgpt.com/backend-api/codex";
 const AMAZON_BEDROCK_PROVIDER_NAME: &str = "Amazon Bedrock";
 pub const AMAZON_BEDROCK_PROVIDER_ID: &str = "amazon-bedrock";
@@ -135,6 +137,17 @@ impl<'de> Deserialize<'de> for WireApi {
     }
 }
 
+/// Format returned by the provider's model-discovery endpoint.
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum ModelCatalogFormat {
+    /// Codex model descriptors, including capabilities and optional messages.
+    #[default]
+    Codex,
+    /// Standard OpenAI-compatible `{ "data": [{ "id": "model-id" }] }` response.
+    Openai,
+}
+
 /// Serializable representation of a provider definition.
 #[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, JsonSchema)]
 #[schemars(deny_unknown_fields)]
@@ -147,6 +160,9 @@ pub struct ModelProviderInfo {
     /// Optional full URL for a Codex-native model catalog. When unset, OpenAI discovery
     /// uses the Codex backend unless `base_url` overrides the inference endpoint.
     pub model_catalog_url: Option<RedactedString>,
+    /// Shape of the model discovery response. Public API catalogs need no behavior prompts.
+    #[serde(default)]
+    pub model_catalog_format: ModelCatalogFormat,
     /// Environment variable that stores the user's API key for this provider.
     pub env_key: Option<String>,
 
@@ -278,6 +294,12 @@ fn default_aws_auth_refresh_timeout_ms() -> NonZeroU64 {
 }
 
 impl ModelProviderInfo {
+    pub fn supports_realtime(&self) -> bool {
+        self.capabilities
+            .and_then(|capabilities| capabilities.realtime)
+            .unwrap_or(self.model_catalog_format != ModelCatalogFormat::Openai)
+    }
+
     /// Checks that a configured Bedrock entry only customizes supported fields.
     /// Call this on the override before merging it with the built-in provider.
     pub fn validate_bedrock_override(&self) -> Result<(), String> {
@@ -530,6 +552,7 @@ other non-default provider fields are not supported"
             name: OPENAI_PROVIDER_NAME.into(),
             base_url,
             model_catalog_url: None,
+            model_catalog_format: Default::default(),
             env_key: None,
             env_key_instructions: None,
             experimental_bearer_token: None,
@@ -577,6 +600,7 @@ other non-default provider fields are not supported"
             // endpoint override.
             base_url: None,
             model_catalog_url: None,
+            model_catalog_format: Default::default(),
             env_key: None,
             env_key_instructions: None,
             experimental_bearer_token: None,
@@ -617,6 +641,13 @@ other non-default provider fields are not supported"
 
     pub fn is_openai(&self) -> bool {
         self.name == OPENAI_PROVIDER_NAME
+    }
+
+    /// Providers with documented, client-executed search and page-fetch APIs.
+    /// This is separate from the Codex-specific `alpha/search` protocol.
+    pub fn has_native_web_tools(&self) -> bool {
+        self.model_catalog_format == ModelCatalogFormat::Openai
+            && matches!(self.name.as_str(), "Ollama Cloud" | "DeepSeek")
     }
 
     pub fn supports_codex_backend_routes(&self) -> bool {
@@ -668,12 +699,16 @@ pub fn built_in_model_providers(
     let amazon_bedrock_runtime_provider =
         P::create_amazon_bedrock_runtime_provider(/*aws*/ None);
 
-    // We do not want to be in the business of adjucating which third-party
-    // providers are bundled with Codex CLI, so we only include the OpenAI and
-    // open source ("oss") providers by default. Users are encouraged to add to
-    // `model_providers` in config.toml to add their own providers.
     [
         (OPENAI_PROVIDER_ID, openai_provider),
+        (
+            DEEPSEEK_PROVIDER_ID,
+            public_api_provider("DeepSeek", "https://api.deepseek.com", "DEEPSEEK_API_KEY"),
+        ),
+        (
+            OLLAMA_CLOUD_PROVIDER_ID,
+            public_api_provider("Ollama Cloud", "https://ollama.com/v1", "OLLAMA_API_KEY"),
+        ),
         (AMAZON_BEDROCK_PROVIDER_ID, amazon_bedrock_provider),
         (
             AMAZON_BEDROCK_RUNTIME_PROVIDER_ID,
@@ -691,6 +726,23 @@ pub fn built_in_model_providers(
     .into_iter()
     .map(|(k, v)| (k.to_string(), v))
     .collect()
+}
+
+fn public_api_provider(name: &str, base_url: &str, env_key: &str) -> ModelProviderInfo {
+    ModelProviderInfo {
+        name: name.to_string(),
+        base_url: Some(base_url.to_string()),
+        env_key: Some(env_key.to_string()),
+        model_catalog_format: ModelCatalogFormat::Openai,
+        capabilities: Some(ModelProviderCapabilities {
+            realtime: Some(false),
+            image_generation: Some(false),
+            web_search: Some(false),
+            external_web_access: Some(false),
+            remote_compaction: Some(RemoteCompactionSupport::Unsupported),
+        }),
+        ..Default::default()
+    }
 }
 
 /// Merge configured providers into the built-in provider catalog.
@@ -759,6 +811,7 @@ pub fn create_oss_provider_with_base_url(base_url: &str, wire_api: WireApi) -> M
         name: "gpt-oss".into(),
         base_url: Some(base_url.into()),
         model_catalog_url: None,
+        model_catalog_format: Default::default(),
         env_key: None,
         env_key_instructions: None,
         experimental_bearer_token: None,

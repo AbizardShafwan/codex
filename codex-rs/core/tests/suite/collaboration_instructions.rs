@@ -239,7 +239,7 @@ async fn catalog_collaboration_messages_track_mode_changes() -> Result<()> {
 #[test_case(ModeKind::Default; "default")]
 #[test_case(ModeKind::Plan; "plan")]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn catalog_collaboration_messages_refresh_without_mode_or_model_change(
+async fn provider_catalog_refresh_preserves_configured_collaboration_instructions(
     mode: ModeKind,
 ) -> Result<()> {
     skip_if_no_network!(Ok(()));
@@ -251,6 +251,7 @@ async fn catalog_collaboration_messages_refresh_without_mode_or_model_change(
     const ORIGINAL: &str = "original catalog collaboration instructions";
     const UPDATED: &str = "updated catalog collaboration instructions";
     const INACTIVE: &str = "inactive mode instructions";
+    const CONFIGURED: &str = "configured collaboration instructions";
 
     let catalog = |instructions: &str| ModelsResponse {
         models: vec![match mode {
@@ -282,24 +283,19 @@ async fn catalog_collaboration_messages_refresh_without_mode_or_model_change(
     core_test_support::submit_thread_settings(
         &test.codex,
         ThreadSettingsOverrides {
-            collaboration_mode: Some(collab_mode_for_model(
-                mode,
-                MODEL,
-                Some("legacy fallback instructions"),
-            )),
+            collaboration_mode: Some(collab_mode_for_model(mode, MODEL, Some(CONFIGURED))),
             ..Default::default()
         },
     )
     .await?;
 
-    let history = [ORIGINAL, UPDATED, ""];
     let mut requests = Vec::new();
-    for (turn, etag, refreshed_instructions, expected) in [
-        ("original", ETAG_2, Some(UPDATED), &history[..1]),
-        ("updated", ETAG_2, None, &history[..2]),
-        ("unchanged", ETAG_3, Some(""), &history[..2]),
-        ("cleared", ETAG_3, None, &history[..]),
-        ("still-cleared", ETAG_3, None, &history[..]),
+    for (turn, etag, refreshed_instructions) in [
+        ("original", ETAG_2, Some(UPDATED)),
+        ("updated", ETAG_2, None),
+        ("unchanged", ETAG_3, Some("")),
+        ("cleared", ETAG_3, None),
+        ("still-cleared", ETAG_3, None),
     ] {
         if let Some(instructions) = refreshed_instructions {
             models_mocks
@@ -324,7 +320,14 @@ async fn catalog_collaboration_messages_refresh_without_mode_or_model_change(
                     .0
             })
             .collect::<Vec<_>>();
-        assert_eq!(collaboration_instructions.as_slice(), expected, "{turn}");
+        assert_eq!(
+            collaboration_instructions.as_slice(),
+            [CONFIGURED],
+            "{turn}"
+        );
+        assert!(!request.body_contains_text(ORIGINAL), "{turn}");
+        assert!(!request.body_contains_text(UPDATED), "{turn}");
+        assert!(!request.body_contains_text(INACTIVE), "{turn}");
         requests.push(request);
     }
 

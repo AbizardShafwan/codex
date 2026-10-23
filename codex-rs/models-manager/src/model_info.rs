@@ -16,6 +16,16 @@ use tracing::warn;
 pub const BASE_INSTRUCTIONS: &str = include_str!("../prompt.md");
 const PERSONALITY_SECTION_HEADER: &str = "# Personality";
 
+/// Select local engineering behavior without changing model capabilities or security policy.
+pub(crate) fn with_builtin_prompt_defaults(mut model: ModelInfo) -> ModelInfo {
+    let messages = model.model_messages.get_or_insert_default();
+    messages.instructions_template = Some(BASE_INSTRUCTIONS.to_string());
+    messages.collaboration_modes = None;
+    messages.multi_agent = None;
+    messages.persistent_instructions = None;
+    model
+}
+
 pub fn with_config_overrides(mut model: ModelInfo, config: &ModelsManagerConfig) -> ModelInfo {
     if let Some(context_window) = config.model_context_window {
         model.context_window = Some(

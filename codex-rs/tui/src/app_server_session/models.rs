@@ -25,11 +25,13 @@ impl AppServerSession {
 
     pub(crate) fn fetch_models(&self, request_id: Uuid, app_event_tx: AppEventSender) {
         let request_handle = self.request_handle();
+        let model_provider = self.model_provider_override.clone();
         tokio::spawn(async move {
             let result = request_handle
                 .request_typed::<ModelListResponse>(ClientRequest::ModelList {
                     request_id: RequestId::String(format!("model-list-{request_id}")),
                     params: ModelListParams {
+                        model_provider,
                         cursor: None,
                         limit: None,
                         include_hidden: Some(true),

@@ -114,6 +114,7 @@ pub(crate) struct OnboardingScreenArgs {
 
 #[derive(Default)]
 pub(crate) struct OnboardingResult {
+    pub selected_provider: Option<String>,
     pub directory_trust_persisted: bool,
     pub should_exit: bool,
 }
@@ -175,6 +176,7 @@ impl OnboardingScreen {
                 };
             if let Some(app_server_request_handle) = app_server_request_handle {
                 steps.push(Step::Auth(AuthModeWidget {
+                    selected_provider: None,
                     request_frame: tui.frame_requester(),
                     highlighted_mode,
                     error: Arc::new(RwLock::new(None)),
@@ -791,6 +793,10 @@ async fn run_onboarding_screen_inner(
         )?;
     }
     Ok(OnboardingResult {
+        selected_provider: onboarding_screen.steps.iter().find_map(|step| match step {
+            Step::Auth(widget) => widget.selected_provider.clone(),
+            _ => None,
+        }),
         directory_trust_persisted,
         should_exit: onboarding_screen.should_exit(),
     })

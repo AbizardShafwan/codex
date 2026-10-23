@@ -3,6 +3,26 @@
   "oneOf": [
     {
       "properties": {
+        "providerId": {
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "providerApiKey"
+          ],
+          "title": "ProviderApiKeyv2::LoginAccountResponseType",
+          "type": "string"
+        }
+      },
+      "required": [
+        "providerId",
+        "type"
+      ],
+      "title": "ProviderApiKeyv2::LoginAccountResponse",
+      "type": "object"
+    },
+    {
+      "properties": {
         "type": {
           "enum": [
             "apiKey"

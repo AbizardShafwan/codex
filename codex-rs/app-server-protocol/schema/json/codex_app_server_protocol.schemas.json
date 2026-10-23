@@ -2229,7 +2229,14 @@
               "type": "string"
             },
             "params": {
-              "type": "null"
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/v2/LogoutAccountParams"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           },
           "required": [
@@ -2267,6 +2274,30 @@
             "method"
           ],
           "title": "Account/rateLimits/readRequest",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/definitions/v2/RequestId"
+            },
+            "method": {
+              "enum": [
+                "provider/account/read"
+              ],
+              "title": "Provider/account/readRequestMethod",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/definitions/v2/GetProviderAccountStatusParams"
+            }
+          },
+          "required": [
+            "id",
+            "method",
+            "params"
+          ],
+          "title": "Provider/account/readRequest",
           "type": "object"
         },
         {
@@ -13055,6 +13086,19 @@
         "title": "GetAccountTokenUsageResponse",
         "type": "object"
       },
+      "GetProviderAccountStatusParams": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "modelProvider": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "modelProvider"
+        ],
+        "title": "GetProviderAccountStatusParams",
+        "type": "object"
+      },
       "GetWorkspaceMessagesResponse": {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "properties": {
@@ -14336,6 +14380,31 @@
         "$schema": "http://json-schema.org/draft-07/schema#",
         "oneOf": [
           {
+            "description": "Save a provider-scoped API key without replacing the ChatGPT account.",
+            "properties": {
+              "apiKey": {
+                "type": "string"
+              },
+              "providerId": {
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "providerApiKey"
+                ],
+                "title": "ProviderApiKeyv2::LoginAccountParamsType",
+                "type": "string"
+              }
+            },
+            "required": [
+              "apiKey",
+              "providerId",
+              "type"
+            ],
+            "title": "ProviderApiKeyv2::LoginAccountParams",
+            "type": "object"
+          },
+          {
             "properties": {
               "apiKey": {
                 "type": "string"
@@ -14506,6 +14575,26 @@
         "oneOf": [
           {
             "properties": {
+              "providerId": {
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "providerApiKey"
+                ],
+                "title": "ProviderApiKeyv2::LoginAccountResponseType",
+                "type": "string"
+              }
+            },
+            "required": [
+              "providerId",
+              "type"
+            ],
+            "title": "ProviderApiKeyv2::LoginAccountResponse",
+            "type": "object"
+          },
+          {
+            "properties": {
               "type": {
                 "enum": [
                   "apiKey"
@@ -14616,6 +14705,18 @@
           "chatgpt"
         ],
         "type": "string"
+      },
+      "LogoutAccountParams": {
+        "properties": {
+          "modelProvider": {
+            "description": "Remove only this public provider's saved key; environment keys are unchanged.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
       },
       "LogoutAccountResponse": {
         "$schema": "http://json-schema.org/draft-07/schema#",
@@ -15907,6 +16008,13 @@
               "integer",
               "null"
             ]
+          },
+          "modelProvider": {
+            "description": "Select a configured provider without changing the active thread or saved defaults.",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "title": "ModelListParams",
@@ -16367,6 +16475,18 @@
           }
         ],
         "title": "Nullable_GetAccountTokenUsageParams"
+      },
+      "NullableLogoutAccountParams": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "anyOf": [
+          {
+            "$ref": "#/definitions/v2/LogoutAccountParams"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Nullable_LogoutAccountParams"
       },
       "OverriddenMetadata": {
         "properties": {
@@ -18164,6 +18284,80 @@
           "recencyAt"
         ],
         "type": "string"
+      },
+      "ProviderAccountStatus": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "description": "Provider-native account data, separate from ChatGPT subscription quotas.",
+        "properties": {
+          "balances": {
+            "items": {
+              "$ref": "#/definitions/v2/ProviderBalance"
+            },
+            "type": "array"
+          },
+          "limits": {
+            "items": {
+              "$ref": "#/definitions/v2/ProviderUsageWindow"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "balances",
+          "limits"
+        ],
+        "title": "ProviderAccountStatus",
+        "type": "object"
+      },
+      "ProviderBalance": {
+        "properties": {
+          "amount": {
+            "description": "Decimal amount as reported by the provider, without floating-point arithmetic.",
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "resetsAt": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "amount",
+          "currency",
+          "label"
+        ],
+        "type": "object"
+      },
+      "ProviderUsageWindow": {
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "remainingPercent": {
+            "format": "double",
+            "type": "number"
+          },
+          "resetsAt": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "label",
+          "remainingPercent"
+        ],
+        "type": "object"
       },
       "QueuedSubmission": {
         "properties": {

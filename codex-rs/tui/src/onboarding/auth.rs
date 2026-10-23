@@ -88,6 +88,7 @@ pub(crate) enum SignInState {
     ChatGptSuccessMessage,
     ChatGptSuccess,
     ApiKeyEntry(ApiKeyInputState),
+    ApiKeySaving(uuid::Uuid),
     ApiKeyConfigured,
     Bedrock(BedrockState),
     BedrockConfigured,
@@ -98,6 +99,8 @@ pub(crate) enum SignInOption {
     ChatGpt,
     DeviceCode,
     ApiKey,
+    DeepSeek,
+    OllamaCloud,
     Bedrock,
 }
 
@@ -188,6 +191,15 @@ impl KeyboardHandler for AuthModeWidget {
         if self.handle_api_key_entry_key_event(&key_event) {
             return;
         }
+        if matches!(
+            *self.sign_in_state.read().unwrap(),
+            SignInState::ApiKeySaving(_)
+        ) {
+            if keys::CANCEL.is_pressed(key_event) {
+                self.cancel_active_attempt();
+            }
+            return;
+        }
 
         if keys::MOVE_UP.is_pressed(key_event) {
             self.move_highlight(/*delta*/ -1);
@@ -211,6 +223,14 @@ impl KeyboardHandler for AuthModeWidget {
         }
         if keys::SELECT_FOURTH.is_pressed(key_event) {
             self.select_option_by_index(/*index*/ 3);
+            return;
+        }
+        if keys::SELECT_FIFTH.is_pressed(key_event) {
+            self.select_option_by_index(4);
+            return;
+        }
+        if keys::SELECT_SIXTH.is_pressed(key_event) {
+            self.select_option_by_index(5);
             return;
         }
         if keys::CONFIRM.is_pressed(key_event) {
@@ -251,6 +271,7 @@ impl KeyboardHandler for AuthModeWidget {
 #[derive(Clone)]
 #[allow(dead_code)]
 pub(crate) struct AuthModeWidget {
+    pub selected_provider: Option<String>,
     pub request_frame: FrameRequester,
     pub highlighted_mode: SignInOption,
     pub error: Arc<RwLock<Option<String>>>,
@@ -294,6 +315,7 @@ impl AuthModeWidget {
                     });
                 }
             }
+            SignInState::ApiKeySaving(_) => {}
             _ => return,
         }
         *sign_in_state = SignInState::PickMode;
@@ -356,6 +378,8 @@ impl AuthModeWidget {
         }
         if self.is_api_login_allowed() {
             options.push(SignInOption::ApiKey);
+            options.push(SignInOption::DeepSeek);
+            options.push(SignInOption::OllamaCloud);
             if self.bedrock_setup_enabled {
                 options.push(SignInOption::Bedrock);
             }
@@ -371,6 +395,8 @@ impl AuthModeWidget {
         }
         if self.is_api_login_allowed() {
             options.push(SignInOption::ApiKey);
+            options.push(SignInOption::DeepSeek);
+            options.push(SignInOption::OllamaCloud);
             if self.bedrock_setup_enabled {
                 options.push(SignInOption::Bedrock);
             }
@@ -404,27 +430,47 @@ impl AuthModeWidget {
         match option {
             SignInOption::ChatGpt => {
                 if self.is_chatgpt_login_allowed() {
+                    self.selected_provider = Some("openai".to_string());
                     self.start_chatgpt_login();
                 }
             }
             SignInOption::DeviceCode => {
                 if self.is_chatgpt_login_allowed() {
+                    self.selected_provider = Some("openai".to_string());
                     self.start_device_code_login();
                 }
             }
             SignInOption::ApiKey => {
                 if self.is_api_login_allowed() {
+                    self.selected_provider = Some("openai".to_string());
+                    *self.sign_in_state.write().unwrap() = SignInState::PickMode;
                     self.start_api_key_entry();
                 } else {
                     self.disallow_api_login();
                 }
             }
             SignInOption::Bedrock => {
+                self.selected_provider = None;
                 if self.bedrock_setup_enabled && self.is_api_login_allowed() {
                     self.start_bedrock_discovery();
                 } else if !self.is_api_login_allowed() {
                     self.disallow_api_login();
                 }
+            }
+            SignInOption::DeepSeek | SignInOption::OllamaCloud => {
+                if !self.is_api_login_allowed() {
+                    self.disallow_api_login();
+                    return;
+                }
+                self.selected_provider = Some(
+                    match option {
+                        SignInOption::DeepSeek => "deepseek",
+                        _ => "ollama-cloud",
+                    }
+                    .to_string(),
+                );
+                *self.sign_in_state.write().unwrap() = SignInState::PickMode;
+                self.start_api_key_entry();
             }
         }
     }
@@ -489,7 +535,10 @@ impl AuthModeWidget {
         };
         let device_code_description = "Sign in from another device with a one-time code";
 
-        for (idx, option) in self.displayed_sign_in_options().into_iter().enumerate() {
+        let options = self.displayed_sign_in_options();
+        let compact = options.len() > 4;
+        let mut selected_end = 0;
+        for (idx, option) in options.into_iter().enumerate() {
             match option {
                 SignInOption::ChatGpt => {
                     lines.extend(create_mode_item(
@@ -511,11 +560,7 @@ impl AuthModeWidget {
                     lines.extend(create_mode_item(
                         idx,
                         option,
-                        if self.bedrock_setup_enabled {
-                            "Use an OpenAI API key"
-                        } else {
-                            "Provide your own API key"
-                        },
+                        "Use an OpenAI API key",
                         "Pay for what you use",
                     ));
                 }
@@ -527,8 +572,27 @@ impl AuthModeWidget {
                         "Connect using your AWS credentials",
                     ));
                 }
+                SignInOption::DeepSeek | SignInOption::OllamaCloud => {
+                    lines.extend(create_mode_item(
+                        idx,
+                        option,
+                        if option == SignInOption::DeepSeek {
+                            "Connect DeepSeek"
+                        } else {
+                            "Connect Ollama Cloud"
+                        },
+                        "Use an API key or reconnect with saved credentials",
+                    ));
+                }
             }
-            lines.push("".into());
+            if !compact {
+                lines.push("".into());
+            }
+            if option == self.highlighted_mode {
+                selected_end = Paragraph::new(lines.clone())
+                    .wrap(Wrap { trim: false })
+                    .line_count(area.width.max(1));
+            }
         }
 
         if !self.is_api_login_allowed() {
@@ -551,6 +615,10 @@ impl AuthModeWidget {
 
         Paragraph::new(lines)
             .wrap(Wrap { trim: false })
+            .scroll((
+                selected_end.saturating_sub(usize::from(area.height)) as u16,
+                0,
+            ))
             .render(area, buf);
     }
 
@@ -679,10 +747,19 @@ impl AuthModeWidget {
     }
 
     fn render_api_key_configured(&self, area: Rect, buf: &mut Buffer) {
+        let billing = if self
+            .selected_provider
+            .as_deref()
+            .is_some_and(|id| id != "openai")
+        {
+            "  Your provider account's limits and billing apply."
+        } else {
+            "  Codex will use usage-based billing with your API key."
+        };
         let lines = vec![
             "✓ API key configured".fg(Color::Green).into(),
             "".into(),
-            "  Codex will use usage-based billing with your API key.".into(),
+            billing.into(),
         ];
 
         Paragraph::new(lines)
@@ -701,14 +778,27 @@ impl AuthModeWidget {
         let mut intro_lines: Vec<Line> = vec![
             Line::from(vec![
                 "> ".into(),
-                "Use your own OpenAI API key for usage-based billing".bold(),
+                match self.selected_provider.as_deref() {
+                    Some("deepseek") => "Connect with your DeepSeek API key",
+                    Some("ollama-cloud") => "Connect with your Ollama Cloud API key",
+                    _ => "Use your own OpenAI API key for usage-based billing",
+                }
+                .bold(),
             ]),
             "".into(),
             "  Paste or type your API key below.".into(),
             "".into(),
         ];
+        if self
+            .selected_provider
+            .as_deref()
+            .is_some_and(|id| id != "openai")
+        {
+            intro_lines.push("  Leave blank to use a saved key or environment variable.".into());
+            intro_lines.push("  Keys are stored separately from your ChatGPT login.".into());
+        }
         if state.prepopulated_from_env {
-            intro_lines.push("  Detected OPENAI_API_KEY environment variable.".into());
+            intro_lines.push("  Detected an API-key environment variable.".into());
             intro_lines.push(
                 "  Paste a different key if you prefer to use another account."
                     .dim()
@@ -723,7 +813,7 @@ impl AuthModeWidget {
         let content_line: Line = if state.value.is_empty() {
             vec!["Paste or type your API key".dim()].into()
         } else {
-            Line::from(state.value.clone())
+            Line::from("•".repeat(state.value.chars().count().min(usize::from(area.width))))
         };
         Paragraph::new(content_line)
             .wrap(Wrap { trim: false })
@@ -770,7 +860,12 @@ impl AuthModeWidget {
                     should_request_frame = true;
                 } else if keys::CONFIRM.is_pressed(*key_event) {
                     let trimmed = state.value.trim().to_string();
-                    if trimmed.is_empty() {
+                    if trimmed.is_empty()
+                        && !self
+                            .selected_provider
+                            .as_deref()
+                            .is_some_and(|id| id != "openai")
+                    {
                         self.set_error(Some("API key cannot be empty".to_string()));
                         should_request_frame = true;
                     } else {
@@ -849,7 +944,12 @@ impl AuthModeWidget {
             return;
         }
         self.set_error(/*message*/ None);
-        let prefill_from_env = read_openai_api_key_from_env();
+        let prefill_from_env = match self.selected_provider.as_deref() {
+            // Remote app servers own provider credentials. Never copy local provider keys
+            // into a remote login merely because the client process has them in its env.
+            Some("deepseek" | "ollama-cloud") => None,
+            _ => read_openai_api_key_from_env(),
+        };
         let mut guard = self.sign_in_state.write().unwrap();
         match &mut *guard {
             SignInState::ApiKeyEntry(state) => {
@@ -878,37 +978,85 @@ impl AuthModeWidget {
             self.disallow_api_login();
             return;
         }
+        let attempt = uuid::Uuid::new_v4();
+        {
+            let mut state = self.sign_in_state.write().unwrap();
+            if matches!(*state, SignInState::ApiKeySaving(_)) {
+                return;
+            }
+            *state = SignInState::ApiKeySaving(attempt);
+        }
         self.set_error(/*message*/ None);
         let request_handle = self.app_server_request_handle.clone();
         let sign_in_state = self.sign_in_state.clone();
         let error = self.error.clone();
         let request_frame = self.request_frame.clone();
+        let provider_id = self.selected_provider.clone().filter(|id| id != "openai");
         tokio::spawn(async move {
-            match request_handle
-                .request_typed::<LoginAccountResponse>(ClientRequest::LoginAccount {
-                    request_id: onboarding_request_id(),
-                    params: LoginAccountParams::ApiKey {
-                        api_key: api_key.clone(),
-                    },
-                })
-                .await
-            {
-                Ok(LoginAccountResponse::ApiKey {}) => {
-                    *error.write().unwrap() = None;
-                    *sign_in_state.write().unwrap() = SignInState::ApiKeyConfigured;
+            let result = async {
+                if let Some(provider_id) = provider_id {
+                    if !api_key.is_empty() {
+                        let response = request_handle
+                            .request_typed::<LoginAccountResponse>(ClientRequest::LoginAccount {
+                                request_id: onboarding_request_id(),
+                                params: LoginAccountParams::ProviderApiKey {
+                                    provider_id: provider_id.clone(),
+                                    api_key: api_key.clone().into(),
+                                },
+                            })
+                            .await
+                            .map_err(|err| err.to_string())?;
+                        if !matches!(response, LoginAccountResponse::ProviderApiKey { .. }) {
+                            return Err("Unexpected provider login response.".to_string());
+                        }
+                    }
+                    let models = request_handle
+                        .request_typed::<codex_app_server_protocol::ModelListResponse>(
+                            ClientRequest::ModelList {
+                                request_id: onboarding_request_id(),
+                                params: codex_app_server_protocol::ModelListParams {
+                                    model_provider: Some(provider_id),
+                                    ..Default::default()
+                                },
+                            },
+                        )
+                        .await
+                        .map_err(|err| err.to_string())?;
+                    if models.data.is_empty() {
+                        return Err(
+                            "No models are available. Check the API key and provider connection."
+                                .to_string(),
+                        );
+                    }
+                    return Ok(());
                 }
-                Ok(other) => {
-                    *error.write().unwrap() = Some(format!(
-                        "Unexpected account/login/start response: {other:?}"
-                    ));
-                    *sign_in_state.write().unwrap() = SignInState::ApiKeyEntry(ApiKeyInputState {
-                        value: api_key,
-                        prepopulated_from_env: false,
-                    });
+                match request_handle
+                    .request_typed::<LoginAccountResponse>(ClientRequest::LoginAccount {
+                        request_id: onboarding_request_id(),
+                        params: LoginAccountParams::ApiKey {
+                            api_key: api_key.clone(),
+                        },
+                    })
+                    .await
+                {
+                    Ok(LoginAccountResponse::ApiKey {}) => Ok(()),
+                    Ok(_) => Err("Unexpected account/login/start response.".to_string()),
+                    Err(err) => Err(err.to_string()),
+                }
+            }
+            .await;
+            let mut state = sign_in_state.write().unwrap();
+            if !matches!(*state, SignInState::ApiKeySaving(current) if current == attempt) {
+                return;
+            }
+            match result {
+                Ok(()) => {
+                    *error.write().unwrap() = None;
+                    *state = SignInState::ApiKeyConfigured;
                 }
                 Err(err) => {
                     *error.write().unwrap() = Some(format!("Failed to save API key: {err}"));
-                    *sign_in_state.write().unwrap() = SignInState::ApiKeyEntry(ApiKeyInputState {
+                    *state = SignInState::ApiKeyEntry(ApiKeyInputState {
                         value: api_key,
                         prepopulated_from_env: false,
                     });
@@ -1047,6 +1195,7 @@ impl StepStateProvider for AuthModeWidget {
         match &*sign_in_state {
             SignInState::PickMode
             | SignInState::ApiKeyEntry(_)
+            | SignInState::ApiKeySaving(_)
             | SignInState::ChatGptContinueInBrowser(_)
             | SignInState::ChatGptDeviceCode(_)
             | SignInState::ChatGptSuccessMessage
@@ -1082,6 +1231,11 @@ impl WidgetRef for AuthModeWidget {
             }
             SignInState::ApiKeyConfigured => {
                 self.render_api_key_configured(area, buf);
+            }
+            SignInState::ApiKeySaving(_) => {
+                Paragraph::new("Checking provider credentials… Press esc to cancel.")
+                    .wrap(Wrap { trim: false })
+                    .render(area, buf);
             }
             SignInState::Bedrock(state) => {
                 state.render(area, buf, self.error_message());
@@ -1191,6 +1345,37 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn cloud_login_selection_masks_keys_and_does_not_prefill_client_environment() {
+        let (mut widget, _tmp) = widget_forced_chatgpt().await;
+        widget.auth_config.forced_login_method = None;
+        widget.handle_key_event(KeyEvent::new(KeyCode::Char('5'), KeyModifiers::NONE));
+        assert_eq!(widget.selected_provider.as_deref(), Some("ollama-cloud"));
+        assert!(
+            matches!(&*widget.sign_in_state.read().unwrap(), SignInState::ApiKeyEntry(state) if state.value.is_empty())
+        );
+        *widget.sign_in_state.write().unwrap() = SignInState::ApiKeyEntry(ApiKeyInputState {
+            value: "never-render-this-secret".into(),
+            prepopulated_from_env: false,
+        });
+        let area = Rect::new(0, 0, 60, 14);
+        let mut buffer = Buffer::empty(area);
+        widget.render_ref(area, &mut buffer);
+        let visible = buffer
+            .content
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+        assert!(!visible.contains("never-render-this-secret"));
+        assert!(visible.contains('•'));
+        *widget.sign_in_state.write().unwrap() = SignInState::ApiKeySaving(uuid::Uuid::new_v4());
+        widget.handle_key_event(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+        assert!(matches!(
+            *widget.sign_in_state.read().unwrap(),
+            SignInState::PickMode
+        ));
+    }
+
+    #[tokio::test]
     async fn login_can_complete_while_browser_is_opening() {
         let (mut widget, _tmp) = widget_forced_chatgpt().await;
         let sign_in_state = widget.sign_in_state.clone();
@@ -1262,6 +1447,7 @@ mod tests {
         .unwrap();
         auth_config.forced_login_method = Some(ForcedLoginMethod::Chatgpt);
         let widget = AuthModeWidget {
+            selected_provider: None,
             request_frame: FrameRequester::test_dummy(),
             highlighted_mode: SignInOption::ChatGpt,
             error: Arc::new(RwLock::new(None)),
@@ -1326,6 +1512,8 @@ mod tests {
                 SignInOption::ChatGpt,
                 SignInOption::DeviceCode,
                 SignInOption::ApiKey,
+                SignInOption::DeepSeek,
+                SignInOption::OllamaCloud,
             ]
         );
 
@@ -1336,6 +1524,8 @@ mod tests {
                 SignInOption::ChatGpt,
                 SignInOption::DeviceCode,
                 SignInOption::ApiKey,
+                SignInOption::DeepSeek,
+                SignInOption::OllamaCloud,
                 SignInOption::Bedrock,
             ]
         );
@@ -1360,16 +1550,16 @@ mod tests {
 
         > 1. Sign in with ChatGPT
              Usage included with Plus, Pro, Business, and Enterprise plans
-
           2. Sign in with Device Code
              Sign in from another device with a one-time code
-
           3. Use an OpenAI API key
              Pay for what you use
-
-          4. Use Amazon Bedrock
+          4. Connect DeepSeek
+             Use an API key or reconnect with saved credentials
+          5. Connect Ollama Cloud
+             Use an API key or reconnect with saved credentials
+          6. Use Amazon Bedrock
              Connect using your AWS credentials
-
           Press enter to continue
         "###);
 
